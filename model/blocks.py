@@ -156,8 +156,6 @@ class ResBlockConfig(BaseConfig):
     cond_emb_2xwidth: bool = True
     # suggest: False
     has_lateral: bool = False
-    # deprecated experiment
-    gated: bool = False
     lateral_channels: int = None
     gate_type: GateType = None
     gate_init: float = None
@@ -179,8 +177,6 @@ class ResBlockConfig(BaseConfig):
     use_checkpoint_gnscalesilu: bool = False
 
     def __post_init__(self):
-        if self.gated:
-            assert self.has_lateral
         self.out_channels = self.out_channels or self.channels
         self.cond_emb_channels = self.cond_emb_channels or self.emb_channels
         self.cond2_emb_channels = self.cond2_emb_channels or self.emb_channels
@@ -211,51 +207,33 @@ class ResBlock(TimestepBlock):
         #############################
         # IN LAYERS
         #############################
-        if conf.gated:
-            assert not conf.use_inlayers_condition
-            self.in_a = nn.Sequential(
+        assert conf.lateral_channels is None
+        layers = []
+        if self.conf.use_checkpoint_gnscalesilu:
+            # more memory efficient, this could be a lot (20%) for large models
+            assert self.conf.condition_type == ConditionType.scale_shift_norm
+            layers.append(CheckpointGNShiftScaleSiLU(32, conf.channels))
+        else:
+            layers += [
                 normalization(conf.channels),
                 nn.SiLU(),
-            )
-            self.in_b = nn.Sequential(
-                normalization(conf.lateral_channels),
-                nn.SiLU(),
-            )
-            self.in_ab = GatedConv(conf.channels,
-                                   conf.lateral_channels,
-                                   conf.out_channels,
-                                   3,
-                                   padding=1,
-                                   gate_type=conf.gate_type,
-                                   gate_init=conf.gate_init)
-        else:
-            assert conf.lateral_channels is None
-            layers = []
-            if self.conf.use_checkpoint_gnscalesilu:
-                # more memory efficient, this could be a lot (20%) for large models
-                assert self.conf.condition_type == ConditionType.scale_shift_norm
-                layers.append(CheckpointGNShiftScaleSiLU(32, conf.channels))
-            else:
-                layers += [
-                    normalization(conf.channels),
-                    nn.SiLU(),
-                ]
-            layers.append(
-                conv_nd(conf.dims,
-                        conf.channels,
-                        conf.out_channels,
-                        3,
-                        padding=1))
-            self.in_layers = nn.Sequential(*layers)
-            # self.in_layers = nn.Sequential(
-            #     normalization(conf.channels),
-            #     nn.SiLU(),
-            #     conv_nd(conf.dims,
-            #             conf.channels,
-            #             conf.out_channels,
-            #             3,
-            #             padding=1),
-            # )
+            ]
+        layers.append(
+            conv_nd(conf.dims,
+                    conf.channels,
+                    conf.out_channels,
+                    3,
+                    padding=1))
+        self.in_layers = nn.Sequential(*layers)
+        # self.in_layers = nn.Sequential(
+        #     normalization(conf.channels),
+        #     nn.SiLU(),
+        #     conv_nd(conf.dims,
+        #             conf.channels,
+        #             conf.out_channels,
+        #             3,
+        #             padding=1),
+        # )
 
         self.updown = conf.up or conf.down
 
@@ -410,7 +388,7 @@ class ResBlock(TimestepBlock):
         #############################
         # SKIP LAYERS
         #############################
-        if not conf.gated and conf.out_channels == conf.channels:
+        if conf.out_channels == conf.channels:
             # cannot be used with gatedconv, also gatedconv is alsways used as the first block
             self.skip_connection = nn.Identity()
         else:
@@ -421,20 +399,11 @@ class ResBlock(TimestepBlock):
                 kernel_size = 1
                 padding = 0
 
-            if conf.gated:
-                self.skip_connection = GatedConv(conf.channels,
-                                                 conf.lateral_channels,
-                                                 conf.out_channels,
-                                                 kernel_size=kernel_size,
-                                                 padding=padding,
-                                                 gate_type=conf.gate_type,
-                                                 gate_init=conf.gate_init)
-            else:
-                self.skip_connection = conv_nd(conf.dims,
-                                               conf.channels,
-                                               conf.out_channels,
-                                               kernel_size,
-                                               padding=padding)
+            self.skip_connection = conv_nd(conf.dims,
+                                            conf.channels,
+                                            conf.out_channels,
+                                            kernel_size,
+                                            padding=padding)
 
     def forward(self,
                 x,
@@ -474,109 +443,76 @@ class ResBlock(TimestepBlock):
         if self.conf.has_lateral:
             # lateral may be supplied even if it doesn't require
             # the model will take the lateral only if "has_lateral"
-            if not self.conf.gated:
-                assert lateral is not None
-                x = th.cat([x, lateral], dim=1)
+            assert lateral is not None
+            x = th.cat([x, lateral], dim=1)
 
-        if self.conf.gated:
-            # deprecated not used in the final version
-            assert not self.updown
-            assert not self.conf.use_inlayers_condition, 'not support the condition at the gated layers yet'
-            x = self.in_a(x)
-            if lateral is not None:
-                # lateral is not mandatory for gated
-                # this allows separately training autoencoder from ddpm
-                lateral = self.in_b(lateral)
-            h = self.in_ab.forward(x, lateral)
-        else:
-            if self.conf.use_inlayers_condition:
-                # apply condition to the input blocks as well
-                # this is new to BeatGANs model
+        if self.conf.use_inlayers_condition:
+            # apply condition to the input blocks as well
+            # this is new to BeatGANs model
 
-                # it's possible that the network may not receieve the time emb
-                # this happens with autoenc and setting the time_at
-                if emb is not None:
-                    emb_in = self.emb_inlayers(emb).type(x.dtype)
-                else:
-                    emb_in = None
-
-                if self.conf.two_cond:
-                    # it's possible that the network is two_cond
-                    # but it doesn't get the second condition
-                    # in which case, we ignore the second condition
-                    # and treat as if the network has one condition
-                    if stylespace_cond_in is not None:
-                        cond_in = stylespace_cond_in
-                    else:
-                        if cond is None:
-                            cond_in = None
-                        else:
-                            cond_in = self.cond_emb_inlayers(cond).type(
-                                x.dtype)
-
-                    if cond_in is not None:
-                        while len(cond_in.shape) < len(x.shape):
-                            cond_in = cond_in[..., None]
-                else:
-                    cond_in = None
-
-                if self.conf.three_cond:
-                    cond2_in = self.cond2_emb_inlayers(cond2).type(x.dtype)
-                    while len(cond2_in.shape) < len(x.shape):
-                        cond2_in = cond2_in[..., None]
-                else:
-                    cond2_in = None
-
-                h = apply_conditions(
-                    h=x,
-                    emb=emb_in,
-                    cond=cond_in,
-                    cond2=cond2_in,
-                    layers=self.in_layers,
-                    time_first=self.conf.time_first,
-                    scale_bias=self.conf.condition_scale_bias,
-                    condition_type=self.conf.condition_type,
-                    scale_at=self.conf.scale_at,
-                    in_channels=self.conf.channels,
-                    use_styleconv=False,
-                    use_checkpoint_gnscalesilu=self.conf.
-                    use_checkpoint_gnscalesilu,
-                    use_after_norm=False,
-                    after_norm=None,
-                    up_down_layer=self.h_upd,
-                )
-                # for the skip connection
-                x = self.x_upd(x)
+            # it's possible that the network may not receieve the time emb
+            # this happens with autoenc and setting the time_at
+            if emb is not None:
+                emb_in = self.emb_inlayers(emb).type(x.dtype)
             else:
-                if self.updown:
-                    assert not self.conf.gated, 'not yet supported with gated'
-                    in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-                    h = in_rest(x)
-                    h = self.h_upd(h)
-                    x = self.x_upd(x)
-                    h = in_conv(h)
-                else:
-                    h = self.in_layers(x)
+                emb_in = None
 
-        # legacy code
-        # if self.updown:
-        #     assert not self.conf.gated, 'not yet supported with gated'
-        #     in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-        #     h = in_rest(x)
-        #     h = self.h_upd(h)
-        #     x = self.x_upd(x)
-        #     h = in_conv(h)
-        # else:
-        #     if self.conf.gated:
-        #         assert not self.conf.use_inlayers_condition, 'not support the condition at the gated layers yet'
-        #         x = self.in_a(x)
-        #         if lateral is not None:
-        #             # lateral is not mandatory for gated
-        #             # this allows separately training autoencoder from ddpm
-        #             lateral = self.in_b(lateral)
-        #         h = self.in_ab.forward(x, lateral)
-        #     else:
-        #         h = self.in_layers(x)
+            if self.conf.two_cond:
+                # it's possible that the network is two_cond
+                # but it doesn't get the second condition
+                # in which case, we ignore the second condition
+                # and treat as if the network has one condition
+                if stylespace_cond_in is not None:
+                    cond_in = stylespace_cond_in
+                else:
+                    if cond is None:
+                        cond_in = None
+                    else:
+                        cond_in = self.cond_emb_inlayers(cond).type(
+                            x.dtype)
+
+                if cond_in is not None:
+                    while len(cond_in.shape) < len(x.shape):
+                        cond_in = cond_in[..., None]
+            else:
+                cond_in = None
+
+            if self.conf.three_cond:
+                cond2_in = self.cond2_emb_inlayers(cond2).type(x.dtype)
+                while len(cond2_in.shape) < len(x.shape):
+                    cond2_in = cond2_in[..., None]
+            else:
+                cond2_in = None
+
+            h = apply_conditions(
+                h=x,
+                emb=emb_in,
+                cond=cond_in,
+                cond2=cond2_in,
+                layers=self.in_layers,
+                time_first=self.conf.time_first,
+                scale_bias=self.conf.condition_scale_bias,
+                condition_type=self.conf.condition_type,
+                scale_at=self.conf.scale_at,
+                in_channels=self.conf.channels,
+                use_styleconv=False,
+                use_checkpoint_gnscalesilu=self.conf.
+                use_checkpoint_gnscalesilu,
+                use_after_norm=False,
+                after_norm=None,
+                up_down_layer=self.h_upd,
+            )
+            # for the skip connection
+            x = self.x_upd(x)
+        else:
+            if self.updown:
+                in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+                h = in_rest(x)
+                h = self.h_upd(h)
+                x = self.x_upd(x)
+                h = in_conv(h)
+            else:
+                h = self.in_layers(x)
 
         if self.conf.use_condition:
             # it's possible that the network may not receieve the time emb
@@ -632,11 +568,7 @@ class ResBlock(TimestepBlock):
                 up_down_layer=None,
             )
 
-        if self.conf.gated:
-            # there is no identity connection with gated
-            return self.skip_connection.forward(x, lateral) + h
-        else:
-            return self.skip_connection(x) + h
+        return self.skip_connection(x) + h
 
 
 def apply_conditions(

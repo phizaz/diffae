@@ -81,8 +81,7 @@ class BeatGANsUNetConfig(BaseConfig):
     resnet_time_emb_2xwidth: bool = True
     # default: False (scale + shift doesn't improve)
     resnet_cond_emb_2xwidth: bool = True
-    # whether to use gating and init blocks (deprecated, old idea)
-    resnet_gated: bool = False
+    ###
     resnet_gate_type: GateType = None
     resnet_gate_init: float = None
     # additional normalization layer after the last convolution of each resblock
@@ -107,10 +106,6 @@ class BeatGANsUNetConfig(BaseConfig):
         if self.input_channel_mult is not None:
             name += f'-inpch{self.model_channels}('
             name += ','.join(str(x) for x in self.input_channel_mult) + ')'
-        if self.resnet_gated:
-            name += f'-gate{self.resnet_gate_type.value}'
-            if self.resnet_gate_type.requires_alpha():
-                name += f'-init{self.resnet_gate_init}'
         if self.embed_channels > 0:
             name += f'-emb{self.embed_channels}'
         name += f'-blk{self.num_res_blocks}'
@@ -352,7 +347,7 @@ class BeatGANsUNetModel(nn.Module):
                 layers = [
                     ResBlockConfig(
                         # only direct channels when gated
-                        channels=(ch if conf.resnet_gated else ch + ich),
+                        channels=ch + ich,
                         emb_channels=conf.embed_channels,
                         dropout=conf.dropout,
                         out_channels=int(conf.model_channels * mult),
@@ -360,8 +355,7 @@ class BeatGANsUNetModel(nn.Module):
                         use_checkpoint=conf.use_checkpoint,
                         # lateral channels are described here when gated
                         has_lateral=True if ich > 0 else False,
-                        lateral_channels=(ich if conf.resnet_gated else None),
-                        gated=conf.resnet_gated,
+                        lateral_channels=None,
                         use_styleconv=style_at_dec,
                         **kwargs,
                     ).make_model()

@@ -142,7 +142,6 @@ class TrainConfig(BaseConfig):
     net_beatgans_resnet_time_first: bool = False
     net_beatgans_resnet_time_emb_2xwidth: bool = True
     net_beatgans_resnet_cond_emb_2xwidth: bool = True
-    net_beatgans_resnet_gated: bool = False
     net_beatgans_resnet_gate_type: GateType = None
     net_beatgans_resnet_gate_init: float = 0
     net_beatgans_resnet_use_after_norm: bool = False
@@ -692,7 +691,6 @@ class TrainConfig(BaseConfig):
                 net_beatgans_resnet_time_emb_2xwidth,
                 resnet_cond_emb_2xwidth=self.
                 net_beatgans_resnet_cond_emb_2xwidth,
-                resnet_gated=self.net_beatgans_resnet_gated,
                 resnet_gate_type=self.net_beatgans_resnet_gate_type,
                 resnet_gate_init=self.net_beatgans_resnet_gate_init,
                 resnet_use_zero_module=self.
@@ -919,7 +917,6 @@ class TrainConfig(BaseConfig):
                 resnet_cond_emb_2xwidth=self.
                 net_beatgans_resnet_cond_emb_2xwidth,
                 vectorizer_type=self.net_enc_vectorizer_type,
-                resnet_gated=self.net_beatgans_resnet_gated,
                 resnet_gate_type=self.net_beatgans_resnet_gate_type,
                 resnet_gate_init=self.net_beatgans_resnet_gate_init,
                 resnet_use_after_norm=self.net_beatgans_resnet_use_after_norm,
