@@ -159,8 +159,6 @@ class ResBlockConfig(BaseConfig):
     lateral_channels: int = None
     gate_type: GateType = None
     gate_init: float = None
-    # whether to use modulated Conv like in StyleGAN2 (slower + uses more memory)
-    use_styleconv: bool = False
     # whether to apply another normalization after the last convolution
     # suggest: False, it doesn't improve
     use_after_norm: bool = False
@@ -219,11 +217,7 @@ class ResBlock(TimestepBlock):
                 nn.SiLU(),
             ]
         layers.append(
-            conv_nd(conf.dims,
-                    conf.channels,
-                    conf.out_channels,
-                    3,
-                    padding=1))
+            conv_nd(conf.dims, conf.channels, conf.out_channels, 3, padding=1))
         self.in_layers = nn.Sequential(*layers)
         # self.in_layers = nn.Sequential(
         #     normalization(conf.channels),
@@ -316,67 +310,40 @@ class ResBlock(TimestepBlock):
             #############################
             # OUT LAYERS (ignored when there is no condition)
             #############################
-            if conf.use_styleconv:
-                assert conf.use_styleconv
-                assert conf.time_first
-                # assert not conf.use_zero_module
-                assert conf.condition_type in [
-                    ConditionType.scale_shift_hybrid,
-                    ConditionType.scale_shift_norm
-                ]
-                assert conf.scale_at == ScaleAt.before_conv
-                assert not conf.cond_emb_2xwidth
-                assert not conf.use_after_norm
-                # use style conv
-                conv = EqualizedConv2DMod(conf.out_channels,
-                                          conf.out_channels,
-                                          3,
-                                          padding=1)
-                if conf.use_zero_module:
-                    conv = zero_module(conv)
-                layers = [
+            # original version
+            conv = conv_nd(conf.dims,
+                            conf.out_channels,
+                            conf.out_channels,
+                            3,
+                            padding=1)
+            if conf.use_zero_module:
+                # zere out the weights
+                # it seems to help training
+                conv = zero_module(conv)
+
+            # construct the layers
+            # - norm
+            # - (modulation)
+            # - act
+            # - dropout
+            # - conv
+            layers = []
+            if self.conf.use_checkpoint_gnscalesilu:
+                # more memory efficient, this could be a lot (20%) for large models
+                assert self.conf.condition_type == ConditionType.scale_shift_norm
+                layers.append(
+                    CheckpointGNShiftScaleSiLU(32, conf.out_channels))
+            else:
+                layers += [
                     normalization(conf.out_channels),
                     nn.SiLU(),
-                    nn.Dropout(p=conf.dropout),
-                    conv,
                 ]
-                self.out_layers = StyleConvSequential(*layers)
-            else:
-                # original version
-                conv = conv_nd(conf.dims,
-                               conf.out_channels,
-                               conf.out_channels,
-                               3,
-                               padding=1)
-                if conf.use_zero_module:
-                    # zere out the weights
-                    # it seems to help training
-                    conv = zero_module(conv)
-
-                # construct the layers
-                # - norm
-                # - (modulation)
-                # - act
-                # - dropout
-                # - conv
-                layers = []
-                if self.conf.use_checkpoint_gnscalesilu:
-                    # more memory efficient, this could be a lot (20%) for large models
-                    assert self.conf.condition_type == ConditionType.scale_shift_norm
-                    assert not self.conf.use_styleconv
-                    layers.append(
-                        CheckpointGNShiftScaleSiLU(32, conf.out_channels))
-                else:
-                    layers += [
-                        normalization(conf.out_channels),
-                        nn.SiLU(),
-                    ]
-                layers += [
-                    nn.Dropout(p=conf.dropout),
-                    conv,
-                ]
-                # self.out_layers = nn.Sequential(*layers)
-                self.out_layers = StyleConvSequential(*layers)
+            layers += [
+                nn.Dropout(p=conf.dropout),
+                conv,
+            ]
+            # self.out_layers = nn.Sequential(*layers)
+            self.out_layers = StyleConvSequential(*layers)
 
         if conf.use_after_norm:
             # same as stylegan1 demodulation
@@ -400,10 +367,10 @@ class ResBlock(TimestepBlock):
                 padding = 0
 
             self.skip_connection = conv_nd(conf.dims,
-                                            conf.channels,
-                                            conf.out_channels,
-                                            kernel_size,
-                                            padding=padding)
+                                           conf.channels,
+                                           conf.out_channels,
+                                           kernel_size,
+                                           padding=padding)
 
     def forward(self,
                 x,
@@ -468,8 +435,7 @@ class ResBlock(TimestepBlock):
                     if cond is None:
                         cond_in = None
                     else:
-                        cond_in = self.cond_emb_inlayers(cond).type(
-                            x.dtype)
+                        cond_in = self.cond_emb_inlayers(cond).type(x.dtype)
 
                 if cond_in is not None:
                     while len(cond_in.shape) < len(x.shape):
@@ -495,7 +461,6 @@ class ResBlock(TimestepBlock):
                 condition_type=self.conf.condition_type,
                 scale_at=self.conf.scale_at,
                 in_channels=self.conf.channels,
-                use_styleconv=False,
                 use_checkpoint_gnscalesilu=self.conf.
                 use_checkpoint_gnscalesilu,
                 use_after_norm=False,
@@ -560,7 +525,6 @@ class ResBlock(TimestepBlock):
                 condition_type=self.conf.condition_type,
                 scale_at=self.conf.scale_at,
                 in_channels=self.conf.out_channels,
-                use_styleconv=self.conf.use_styleconv,
                 use_checkpoint_gnscalesilu=self.conf.
                 use_checkpoint_gnscalesilu,
                 use_after_norm=self.conf.use_after_norm,
@@ -582,7 +546,6 @@ def apply_conditions(
     condition_type: ConditionType = ConditionType.scale_shift_norm,
     scale_at: ScaleAt = ScaleAt.after_norm,
     in_channels: int = 512,
-    use_styleconv: bool = False,
     use_checkpoint_gnscalesilu: bool = False,
     use_after_norm: bool = False,
     after_norm: nn.Module = None,
@@ -675,29 +638,15 @@ def apply_conditions(
         else:
             h = pre_layers(h)
 
-        if use_styleconv:
-            # styleconv = using the modulated convolution as in StyleGAN
-            # it's slow, not used in the final paper
-            assert not three_cond
-            # the first cond (time) multiplies
-            scale, shift = scale_shifts[0]
-            if scale is not None:
-                h = h * (biases[0] + scale)
-                if shift is not None:
-                    h = h + shift
-            # the second (style) use styleconv which means also demod
-            # supply this to the styleconv
-            style_cond, _ = scale_shifts[1] + biases[1]
-        else:
-            if not use_checkpoint_gnscalesilu:
-                # ignore this if use the checkpoint version
-                # scale and shift for each condition
-                for i, (scale, shift) in enumerate(scale_shifts):
-                    # if scale is None, it indicates that the condition is not provided
-                    if scale is not None:
-                        h = h * (biases[i] + scale)
-                        if shift is not None:
-                            h = h + shift
+        if not use_checkpoint_gnscalesilu:
+            # ignore this if use the checkpoint version
+            # scale and shift for each condition
+            for i, (scale, shift) in enumerate(scale_shifts):
+                # if scale is None, it indicates that the condition is not provided
+                if scale is not None:
+                    h = h * (biases[i] + scale)
+                    if shift is not None:
+                        h = h + shift
         h = mid_layers(h)
     elif condition_type == ConditionType.scale_shift_hybrid:
         # time condition adds
@@ -714,13 +663,9 @@ def apply_conditions(
         scale, shift = scale_shifts[1]
         # if scale is None, the condition is not provided
         if scale is not None:
-            if use_styleconv:
-                # supply this to the styleconv
-                style_cond = (biases[1] + scale).flatten(1)
-            else:
-                h = h * (biases[1] + scale)
-                if shift is not None:
-                    h = h + shift
+            h = h * (biases[1] + scale)
+            if shift is not None:
+                h = h + shift
         h = mid_layers(h)
     elif condition_type == ConditionType.add:
         for (shift, _) in scale_shifts:

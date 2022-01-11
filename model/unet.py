@@ -92,8 +92,6 @@ class BeatGANsUNetConfig(BaseConfig):
     # default: True (BeattGANs)
     resnet_use_zero_module: bool = True
     resnet_scale_at: ScaleAt = ScaleAt.after_norm
-    # whether the replace convolutions with Modulated Conv as in StyleGAN2 (slow, no improvement)
-    resnet_use_style_conv: bool = False
     # checkpoint the scale & shift operations (this is cheap). This can save as much as 20% of the memory on large models
     resnet_use_checkpoint_gnscalesilu: bool = False
     # gradient checkpoint the attention operation
@@ -144,8 +142,6 @@ class BeatGANsUNetConfig(BaseConfig):
             name += f'-scaleat{self.resnet_scale_at.value}'
         if self.resnet_use_after_norm:
             name += '-afternorm'
-        if self.resnet_use_style_conv:
-            name += '-styleconv'
         if not self.resnet_use_zero_module:
             name += '-nonzero'
         if self.resnet_use_checkpoint_gnscalesilu:
@@ -187,24 +183,9 @@ class BeatGANsUNetModel(nn.Module):
         ])
 
         # a hack!
-        style_at_input = False
-        style_at_mid = False
-        style_at_dec = False
-        if hasattr(conf, 'cond_at') and conf.resnet_use_style_conv:
-            assert isinstance(conf.cond_at, CondAt)
-            if conf.cond_at == CondAt.all:
-                style_at_input = True
-                style_at_mid = True
-                style_at_dec = True
-            elif conf.cond_at == CondAt.dec:
-                style_at_dec = True
-            elif conf.cond_at == CondAt.enc:
-                style_at_input = True
-            elif conf.cond_at == CondAt.mid_dec:
-                style_at_mid = True
-                style_at_dec = True
-            else:
-                raise NotImplementedError()
+        style_at_input = True
+        style_at_mid = True
+        style_at_dec = True
 
         kwargs = dict(
             use_condition=True,
@@ -254,7 +235,6 @@ class BeatGANsUNetModel(nn.Module):
                         out_channels=int(mult * conf.model_channels),
                         dims=conf.dims,
                         use_checkpoint=conf.use_checkpoint,
-                        use_styleconv=style_at_input,
                         **kwargs,
                     ).make_model()
                 ]
@@ -289,7 +269,6 @@ class BeatGANsUNetModel(nn.Module):
                             dims=conf.dims,
                             use_checkpoint=conf.use_checkpoint,
                             down=True,
-                            use_styleconv=style_at_input,
                             **kwargs,
                         ).make_model() if conf.
                         resblock_updown else Downsample(ch,
@@ -310,7 +289,6 @@ class BeatGANsUNetModel(nn.Module):
                 conf.dropout,
                 dims=conf.dims,
                 use_checkpoint=conf.use_checkpoint,
-                use_styleconv=style_at_mid,
                 **kwargs,
             ).make_model(),
             AttentionBlock(
@@ -326,7 +304,6 @@ class BeatGANsUNetModel(nn.Module):
                 conf.dropout,
                 dims=conf.dims,
                 use_checkpoint=conf.use_checkpoint,
-                use_styleconv=style_at_mid,
                 **kwargs,
             ).make_model(),
         )
@@ -356,7 +333,6 @@ class BeatGANsUNetModel(nn.Module):
                         # lateral channels are described here when gated
                         has_lateral=True if ich > 0 else False,
                         lateral_channels=None,
-                        use_styleconv=style_at_dec,
                         **kwargs,
                     ).make_model()
                 ]
@@ -384,7 +360,6 @@ class BeatGANsUNetModel(nn.Module):
                             dims=conf.dims,
                             use_checkpoint=conf.use_checkpoint,
                             up=True,
-                            use_styleconv=style_at_dec,
                             **kwargs,
                         ).make_model() if (
                             conf.resblock_updown

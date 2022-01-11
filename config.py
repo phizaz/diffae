@@ -147,7 +147,6 @@ class TrainConfig(BaseConfig):
     net_beatgans_resnet_use_after_norm: bool = False
     net_beatgans_resnet_use_zero_module: bool = True
     net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.after_norm
-    net_beatgans_resnet_use_styleconv: bool = False
     net_beatgans_resnet_use_checkpoint_gnscalesilu: bool = False
     net_beatgans_resnet_cond_channels: int = None
     net_beatgans_three_cond: bool = False
@@ -923,7 +922,6 @@ class TrainConfig(BaseConfig):
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 resnet_scale_at=self.net_beatgans_resnet_scale_at,
-                resnet_use_style_conv=self.net_beatgans_resnet_use_styleconv,
                 cond_at=self.net_autoenc_cond_at,
                 time_at=self.net_autoenc_time_at,
                 has_init=self.net_autoenc_has_init,

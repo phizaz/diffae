@@ -61,7 +61,7 @@ def inverse_only(img, inv_T):
 #                     do_normalize=True)
 data = CelebHQLMDB(data_paths['celebahq'][0], image_size=conf.img_size, do_augment=False, do_transform=True, do_normalize=True)
 
-conf.batch_size = 10
+conf.batch_size = 2
 loader = conf.make_loader(data, shuffle=False)
 
 from torchvision.utils import save_image, make_grid
