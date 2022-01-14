@@ -37,7 +37,6 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     enc_num_res_block: int = 2
     enc_channel_mult: Tuple[int] = None
     enc_grad_checkpoint: bool = False
-    enc_tanh: bool = False
     style_time_mode: TimeMode = None 
     # unconditioned style layers
     style_layer: int = 8
@@ -69,8 +68,6 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
             if self.enc_attn_resolutions is not None:
                 name += '-encatt(' + ','.join(
                     str(x) for x in self.enc_attn_resolutions) + ')'
-            if self.enc_tanh:
-                name += '-tanh'
         else:
             name += '-extenc'
 
@@ -197,7 +194,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 use_new_attention_order=conf.use_new_attention_order,
                 pool=conf.enc_pool,
                 pool_tail_layer=conf.enc_pool_tail_layer,
-                last_act=Activation.tanh if conf.enc_tanh else Activation.none,
+                last_act=Activation.none,
             ).make_model()
 
         if conf.latent_net_conf is not None:

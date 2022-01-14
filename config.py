@@ -138,7 +138,6 @@ class TrainConfig(BaseConfig):
     net_beatgans_resnet_condition_scale_bias: float = 1
     net_beatgans_resnet_two_cond: bool = False
     net_beatgans_resnet_time_emb_2xwidth: bool = True
-    net_beatgans_resnet_cond_emb_2xwidth: bool = True
     net_beatgans_resnet_use_zero_module: bool = True
     net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.after_norm
     net_beatgans_resnet_cond_channels: int = None
@@ -158,7 +157,6 @@ class TrainConfig(BaseConfig):
     net_enc_channel_mult: Tuple[int] = None
     net_enc_grad_checkpoint: bool = False
     net_enc_vectorizer_type: VectorizerType = None
-    net_enc_tanh: bool = False
     net_autoenc_stochastic: bool = False
     net_latent_activation: Activation = Activation.silu
     net_latent_attn_resolutions: Tuple[int] = tuple()
@@ -665,8 +663,6 @@ class TrainConfig(BaseConfig):
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
                 resnet_time_emb_2xwidth=self.
                 net_beatgans_resnet_time_emb_2xwidth,
-                resnet_cond_emb_2xwidth=self.
-                net_beatgans_resnet_cond_emb_2xwidth,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 resnet_scale_at=self.net_beatgans_resnet_scale_at,
@@ -763,14 +759,11 @@ class TrainConfig(BaseConfig):
                 use_checkpoint=self.net_beatgans_gradient_checkpoint,
                 use_fp16=False,
                 use_new_attention_order=False,
-                enc_tanh=self.net_enc_tanh,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
                 resnet_time_emb_2xwidth=self.
                 net_beatgans_resnet_time_emb_2xwidth,
-                resnet_cond_emb_2xwidth=self.
-                net_beatgans_resnet_cond_emb_2xwidth,
                 vectorizer_type=self.net_enc_vectorizer_type,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,

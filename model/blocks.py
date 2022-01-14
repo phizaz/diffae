@@ -133,8 +133,6 @@ class ResBlockConfig(BaseConfig):
     cond_emb_channels: int = None
     # whether to use both scale & shift for time condition
     time_emb_2xwidth: bool = True
-    # whether to use both scale & shift for encoder's output condition
-    cond_emb_2xwidth: bool = True
     # suggest: False
     has_lateral: bool = False
     lateral_channels: int = None
@@ -179,15 +177,6 @@ class ResBlock(TimestepBlock):
             conv_nd(conf.dims, conf.channels, conf.out_channels, 3, padding=1)
         ]
         self.in_layers = nn.Sequential(*layers)
-        # self.in_layers = nn.Sequential(
-        #     normalization(conf.channels),
-        #     nn.SiLU(),
-        #     conv_nd(conf.dims,
-        #             conf.channels,
-        #             conf.out_channels,
-        #             3,
-        #             padding=1),
-        # )
 
         self.updown = conf.up or conf.down
 
@@ -217,11 +206,7 @@ class ResBlock(TimestepBlock):
             if conf.two_cond:
                 self.cond_emb_layers = nn.Sequential(
                     nn.SiLU(),
-                    linear(
-                        conf.cond_emb_channels,
-                        2 * conf.out_channels
-                        if conf.cond_emb_2xwidth else conf.out_channels,
-                    ),
+                    linear(conf.cond_emb_channels, conf.out_channels),
                 )
             #############################
             # OUT LAYERS (ignored when there is no condition)
@@ -285,9 +270,9 @@ class ResBlock(TimestepBlock):
             x: input
             lateral: lateral connection from the encoder
         """
-        return torch_checkpoint(
-            self._forward, (x, emb, cond, lateral, stylespace_cond),
-            self.conf.use_checkpoint)
+        return torch_checkpoint(self._forward,
+                                (x, emb, cond, lateral, stylespace_cond),
+                                self.conf.use_checkpoint)
 
     def _forward(
         self,
