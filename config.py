@@ -1,7 +1,7 @@
 from model.unet import ScaleAt
 from model.latentnet import *
 from model.noisenet import NoiseNetConfig, NoiseNetType
-from model.unet_autoenc import LatentGenerativeModelConfig, MergerType, TimeMode, VectorizerType
+from model.unet_autoenc import TimeMode, VectorizerType
 from diffusion.resample import UniformSampler
 from diffusion.diffusion import space_timesteps
 from typing import Tuple

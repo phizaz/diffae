@@ -19,11 +19,6 @@ class VectorizerType(Enum):
     identity = 'identity'
 
 
-class MergerType(Enum):
-    conv1 = 'conv1'
-    conv3 = 'conv3'
-    block = 'block'
-
 
 @dataclass
 class BeatGANsAutoencConfig(BeatGANsUNetConfig):
