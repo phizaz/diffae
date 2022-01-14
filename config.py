@@ -84,7 +84,6 @@ class TrainConfig(BaseConfig):
     beatgans_rescale_timesteps: bool = False
     latent_infer_path: str = None
     latent_znormalize: bool = False
-    latent_running_znormalize: bool = False
     latent_gen_type: GenerativeType = GenerativeType.ddpm
     latent_loss_type: LossType = LossType.mse
     latent_model_mean_type: ModelMeanType = ModelMeanType.eps
@@ -297,12 +296,8 @@ class TrainConfig(BaseConfig):
         if self.train_mode.is_latent_diffusion():
             if self.latent_znormalize:
                 tmp += '-znorm'
-                if self.latent_running_znormalize:
-                    tmp += 'run'
             if self.latent_clip_sample:
                 tmp += '-clip'
-            if self.train_mode == TrainMode.double_diffusion and self.latent_detach:
-                tmp += '-detach'
             if self.latent_unit_normalize:
                 tmp += '-unit'
 

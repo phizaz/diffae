@@ -86,11 +86,6 @@ class LitModel(pl.LightningModule):
             self.conds_mean = None
             self.conds_std = None
 
-        if conf.latent_znormalize and conf.latent_running_znormalize:
-            self.znormalizer = RunningNormalizer(self.conf.style_ch)
-        else:
-            self.znormalizer = None
-
     def normalize(self, cond):
         cond = (cond - self.conds_mean.to(self.device)) / self.conds_std.to(
             self.device)
@@ -219,7 +214,8 @@ class LitModel(pl.LightningModule):
         if both_flips:
             # both original pose and its flipped version
             data_a = self.conf.make_dataset()
-            assert not (isinstance(data_a, CelebAlmdb) and data_a.crop_d2c), "doesn't support celeba dataset with d2c crop"
+            assert not (isinstance(data_a, CelebAlmdb) and data_a.crop_d2c
+                        ), "doesn't support celeba dataset with d2c crop"
             data_a.transform = make_transform(self.conf.img_size, flip_prob=0)
             data_b = self.conf.make_dataset()
             data_b.transform = make_transform(self.conf.img_size, flip_prob=1)
@@ -228,9 +224,12 @@ class LitModel(pl.LightningModule):
             data = self.conf.make_dataset()
             if isinstance(data, CelebAlmdb) and data.crop_d2c:
                 # special case where we need the d2c crop
-                data.transform = make_transform(self.conf.img_size, flip_prob=0, crop_d2c=True)
+                data.transform = make_transform(self.conf.img_size,
+                                                flip_prob=0,
+                                                crop_d2c=True)
             else:
-                data.transform = make_transform(self.conf.img_size, flip_prob=0)
+                data.transform = make_transform(self.conf.img_size,
+                                                flip_prob=0)
 
         # data = SubsetDataset(data, 21)
 
@@ -335,612 +334,20 @@ class LitModel(pl.LightningModule):
                 losses = self.sampler.training_losses(model=self.model,
                                                       x_start=x_start,
                                                       t=t)
-            elif self.conf.train_mode == TrainMode.diffusion_interpolate:
-                device = imgs.device
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-
-                def interpolate_cond_and_imgs(cond, imgs):
-                    i_intp = torch.randperm(len(cond), device=device)
-                    # (n, c)
-                    cond_b = cond[i_intp]
-                    # (n, 3, h, w)
-                    img_b = imgs[i_intp]
-
-                    deg = torch.rand(len(cond), 1, device=device)
-                    cond_intp = deg * cond + (1 - deg) * cond_b
-                    prob = torch.cat([
-                        deg,
-                        1 - deg,
-                    ], dim=1)
-
-                    m = Categorical(prob)
-                    select = m.sample().bool()
-                    # interpolated image is either ends
-                    img_intp = torch.where(select[:, None, None, None], imgs,
-                                           img_b)
-                    return cond_intp, img_intp
-
-                if self.conf.train_interpolate_prob > 0:
-                    cond_intp, img_intp = interpolate_cond_and_imgs(cond, imgs)
-                    select = torch.rand(len(cond), device=device)
-                    select = select < self.conf.train_interpolate_prob
-
-                    cond = torch.where(select[:, None], cond_intp, cond)
-                    x_start = torch.where(select[:, None, None, None],
-                                          img_intp, imgs)
-
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    t=t,
-                    model_kwargs={
-                        'cond': cond,
-                    },
-                )
-            elif self.conf.train_mode == TrainMode.diffusion_interpolate_deterministic:
-                device = imgs.device
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-
-                def interpolate_cond_and_imgs(cond, imgs):
-                    i_intp = torch.randperm(len(cond), device=device)
-                    # (n, c)
-                    cond_b = cond[i_intp]
-                    # (n, 3, h, w)
-                    img_b = imgs[i_intp]
-
-                    deg = torch.rand(len(cond), 1, device=device)
-                    cond_intp = deg * cond + (1 - deg) * cond_b
-                    # select the imgs instead of img_b
-                    select = deg > 0.5
-                    # interpolated image is either ends
-                    img_intp = torch.where(select[:, :, None, None], imgs,
-                                           img_b)
-                    return cond_intp, img_intp
-
-                if self.conf.train_interpolate_prob > 0:
-                    cond_intp, img_intp = interpolate_cond_and_imgs(cond, imgs)
-                    select = torch.rand(len(cond), device=device)
-                    select = select < self.conf.train_interpolate_prob
-
-                    cond = torch.where(select[:, None], cond_intp, cond)
-                    x_start = torch.where(select[:, None, None, None],
-                                          img_intp, imgs)
-
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    t=t,
-                    model_kwargs={
-                        'cond': cond,
-                    },
-                )
-            elif self.conf.train_mode in [
-                    TrainMode.diffusion_interpolate_deterministic_weight,
-                    TrainMode.diffusion_interpolate_deterministic_weight_pow2
-            ]:
-                device = imgs.device
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-
-                # (n,)
-                weight = torch.ones(len(cond), device=device)
-
-                def interpolate_cond_and_imgs(cond, imgs):
-                    i_intp = torch.randperm(len(cond), device=device)
-                    # (n, c)
-                    cond_b = cond[i_intp]
-                    # (n, 3, h, w)
-                    img_b = imgs[i_intp]
-
-                    deg = torch.rand(len(cond), 1, device=device)
-                    # (n,)
-                    weight = torch.abs((deg * 2) - 1).squeeze(-1)
-
-                    if self.conf.train_mode == TrainMode.diffusion_interpolate_deterministic_weight_pow2:
-                        # pow2 weight decays faster
-                        weight = weight.pow(2)
-
-                    cond_intp = deg * cond + (1 - deg) * cond_b
-                    if self.conf.train_interpolate_img:
-                        # interpolated image
-                        img_intp = deg[:, :, None, None] * imgs + (
-                            1 - deg[:, :, None, None]) * img_b
-                    else:
-                        # select the imgs instead of img_b
-                        select = deg > 0.5
-                        # interpolated image is either ends
-                        img_intp = torch.where(select[:, :, None, None], imgs,
-                                               img_b)
-                    return cond_intp, img_intp, weight
-
-                if self.conf.train_interpolate_prob > 0:
-                    cond_intp, img_intp, weight_intp = interpolate_cond_and_imgs(
-                        cond, imgs)
-                    # (n, )
-                    select = torch.rand(len(cond), device=device)
-                    select = select < self.conf.train_interpolate_prob
-
-                    cond = torch.where(select[:, None], cond_intp, cond)
-                    x_start = torch.where(select[:, None, None, None],
-                                          img_intp, imgs)
-                    weight = torch.where(select, weight_intp, weight)
-
-                t, _ = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    t=t,
-                    model_kwargs={
-                        'cond': cond,
-                    },
-                )
-                # weight the interpolate samples down
-                # (n, )
-                losses['loss'] = losses['loss'] * weight
-
-            elif self.conf.train_mode == TrainMode.diffusion_interpolate_closest:
-                # interpolate only between closest images (based on the latents)
-                device = imgs.device
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-
-                def interpolate_cond_and_imgs(cond, imgs):
-                    assert len(cond) > 1
-                    # interpolate between closest images in the same worker
-                    dist = torch.cdist(cond, cond)
-                    idx = torch.arange(len(cond))
-                    dist[idx, idx] = float('inf')
-                    v, i_intp = dist.min(dim=1)
-                    # (n, c)
-                    cond_b = cond[i_intp]
-                    # (n, 3, h, w)
-                    img_b = imgs[i_intp]
-
-                    deg = torch.rand(len(cond), 1, device=device)
-                    cond_intp = deg * cond + (1 - deg) * cond_b
-                    prob = torch.cat([
-                        deg,
-                        1 - deg,
-                    ], dim=1)
-
-                    m = Categorical(prob)
-                    select = m.sample().bool()
-                    # interpolated image is either ends
-                    img_intp = torch.where(select[:, None, None, None], imgs,
-                                           img_b)
-                    return cond_intp, img_intp
-
-                if self.conf.train_interpolate_prob > 0:
-                    cond_intp, img_intp = interpolate_cond_and_imgs(cond, imgs)
-                    select = torch.rand(len(cond), device=device)
-                    select = select < self.conf.train_interpolate_prob
-
-                    cond = torch.where(select[:, None], cond_intp, cond)
-                    x_start = torch.where(select[:, None, None, None],
-                                          img_intp, imgs)
-
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    t=t,
-                    model_kwargs={
-                        'cond': cond,
-                    },
-                )
-            elif self.conf.train_mode == TrainMode.diffusion_interpolate_closest_deterministic:
-                # interpolate only between closest images (based on the latents)
-                # this is the version that doesn't sample the target image
-                device = imgs.device
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-
-                def interpolate_cond_and_imgs(cond, imgs):
-                    assert len(cond) > 1
-                    # interpolate between closest images in the same worker
-                    dist = torch.cdist(cond, cond)
-                    idx = torch.arange(len(cond))
-                    dist[idx, idx] = float('inf')
-                    v, i_intp = dist.min(dim=1)
-                    # (n, c)
-                    cond_b = cond[i_intp]
-                    # (n, 3, h, w)
-                    img_b = imgs[i_intp]
-
-                    deg = torch.rand(len(cond), 1, device=device)
-                    # (n, c)
-                    cond_intp = deg * cond + (1 - deg) * cond_b
-
-                    # select the imgs instead of img_b
-                    # (n, 1)
-                    select = deg > 0.5
-                    # interpolated image is either ends
-                    # select => (n, 1, 1, 1)
-                    img_intp = torch.where(select[:, :, None, None], imgs,
-                                           img_b)
-                    return cond_intp, img_intp
-
-                if self.conf.train_interpolate_prob > 0:
-                    cond_intp, img_intp = interpolate_cond_and_imgs(cond, imgs)
-                    select = torch.rand(len(cond), device=device)
-                    select = select < self.conf.train_interpolate_prob
-
-                    cond = torch.where(select[:, None], cond_intp, cond)
-                    x_start = torch.where(select[:, None, None, None],
-                                          img_intp, imgs)
-
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    t=t,
-                    model_kwargs={
-                        'cond': cond,
-                    },
-                )
-            elif self.conf.train_mode == TrainMode.diffusion_interpolate_all_img:
-                # sampling based on the closest distances
-                device = imgs.device
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-
-                def interpolate_cond_and_imgs(cond, all_conds, all_imgs):
-                    assert len(cond) > 1
-                    # interpolate between closest images in the same worker
-                    dist = torch.cdist(cond, cond)
-                    idx = torch.arange(len(cond))
-                    dist[idx, idx] = float('inf')
-                    v, i_intp = dist.min(dim=1)
-                    # (n, c)
-                    cond_b = cond[i_intp]
-
-                    # finding the closest target image in the whole world
-                    deg = torch.rand(len(cond), 1, device=device)
-                    cond_intp = deg * cond + (1 - deg) * cond_b
-                    # (n, N)
-                    dist = torch.cdist(cond_intp, all_conds) + 1e-8
-                    v, arg = dist.min(dim=1)
-                    # (n, N)
-                    prob = v[:, None] / dist
-                    m = Categorical(prob)
-                    select = m.sample()
-                    # (n)
-                    img_intp = all_imgs[select]
-                    return cond_intp, img_intp
-
-                if self.conf.train_interpolate_prob > 0:
-                    # don't need the gradients
-                    with torch.no_grad():
-                        all_conds = cond
-                        all_imgs = imgs
-                        all_conds = self.all_gather(all_conds)
-                        if all_conds.dim() == 3:
-                            all_conds = all_conds.flatten(0, 1)
-                        all_imgs = self.all_gather(all_imgs)
-                        if all_imgs.dim() == 5:
-                            all_imgs = all_imgs.flatten(0, 1)
-                        # print(all_conds.shape)
-                        # print(all_imgs.shape)
-
-                    cond_intp, img_intp = interpolate_cond_and_imgs(
-                        cond, all_conds, all_imgs)
-                    select = torch.rand(len(cond), device=device)
-                    select = select < self.conf.train_interpolate_prob
-
-                    cond = torch.where(select[:, None], cond_intp, cond)
-                    x_start = torch.where(select[:, None, None, None],
-                                          img_intp, imgs)
-
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    t=t,
-                    model_kwargs={
-                        'cond': cond,
-                    },
-                )
-                pass
-            elif self.conf.train_mode == TrainMode.autoenc:
-                with amp.autocast(self.conf.fp16):
-                    out = self.model.forward(x=None, t=None, x_start=x_start)
-                    loss = F.mse_loss(out.pred, x_start)
-                losses = {'loss': loss}
-            elif self.conf.train_mode == TrainMode.generative_latent:
-                self.model: LatentGenerativeModel
-                with amp.autocast(self.conf.fp16):
-                    # (n, c)
-                    cond_gt = self.model.encoder(x_start)
-                    # generate cond
-                    # NOTE: only work with world size = 1
-                    cond = torch.randn(len(imgs),
-                                       self.conf.style_ch,
-                                       device=self.device)
-                    # (n, c)
-                    cond = self.model.noise_to_cond(cond)
-
-                def chamfer_loss(A, B):
-                    dist = torch.cdist(A, B)
-                    a, arg_a = dist.min(dim=1)
-                    b, arg_b = dist.min(dim=0)
-                    detach = False
-                    _B = B[arg_a]
-                    _A = A[arg_b]
-                    if detach:
-                        _A.detach_()
-                        _B.detach_()
-                    ab = F.smooth_l1_loss(A, _B)
-                    ba = F.smooth_l1_loss(_A, B)
-                    return ab + ba, arg_a
-
-                def stochastic_chamfer_loss(A, B):
-                    dist = torch.cdist(A, B).float()
-                    # prevent dist = 0
-                    dist = dist + torch.randn_like(dist) * 1e-8
-                    a, arg_a = dist.min(dim=1)
-                    b, arg_b = dist.min(dim=0)
-                    detach = False
-                    _B = B[arg_a]
-                    _A = A[arg_b]
-                    if detach:
-                        _A.detach_()
-                        _B.detach_()
-                    ab = F.smooth_l1_loss(A, _B)
-                    ba = F.smooth_l1_loss(_A, B)
-
-                    pdist = a[:, None] / dist
-                    pdist = pdist / pdist.sum(dim=1, keepdim=True)
-                    sampler = Categorical(pdist)
-                    # (N, )
-                    samples = sampler.sample()
-                    return ab + ba, samples
-
-                if self.conf.chamfer_type == ChamferType.chamfer:
-                    loss_chamfer, arg = chamfer_loss(cond, cond_gt)
-                elif self.conf.chamfer_type == ChamferType.stochastic:
-                    loss_chamfer, arg = stochastic_chamfer_loss(cond, cond_gt)
-                else:
-                    raise NotImplementedError()
-                arg_cnt = float(arg.unique().numel())
-                # (n, c)
-                cond = CloneGrad.apply(cond, cond_gt[arg])
-                # (n, 3, h, w)
-                cond_img = x_start[arg]
-
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=cond_img,
-                    # supply the cond, it must suppress x_start!
-                    model_kwargs={'cond': cond},
-                    t=t)
-                losses['loss'] += self.conf.chamfer_coef * loss_chamfer
-                losses['chamfer'] = loss_chamfer
-                losses['arg_cnt'] = arg_cnt
             elif self.conf.train_mode.is_latent_diffusion():
                 """
                 training the latent variables!
                 """
-                if self.conf.train_mode == TrainMode.double_diffusion:
-                    # cannot do the z normalization
-                    assert not self.conf.latent_znormalize
-
-                    # train both model and latent at the same time
-                    self.model: BeatGANsAutoencModel
-                    with amp.autocast(self.conf.fp16):
-                        # must use the ema model for the best quality
-                        cond = self.ema_model.encoder(x_start)
-
-                    # diffusion on the latent
-                    t, weight = self.T_sampler.sample(len(cond), cond.device)
-                    if self.conf.latent_detach:
-                        _cond = cond.detach()
-                    else:
-                        _cond = cond
-                    if self.conf.latent_unit_normalize:
-                        _cond = F.normalize(_cond, dim=1)
-                    latent_losses = self.latent_sampler.training_losses(
-                        model=self.model.latent_net, x_start=_cond, t=t)
-
-                    # diffusion on the image
-                    t, weight = self.T_sampler.sample(len(x_start),
-                                                      x_start.device)
-                    losses = self.sampler.training_losses(
-                        model=self.model,
-                        x_start=x_start,
-                        model_kwargs={'cond': cond},
-                        t=t)
-
-                    # add the latent loss to the overall loss
-                    losses['latent'] = latent_losses['loss']
-                    losses['loss'] = losses['loss'] + losses['latent']
-                elif self.conf.train_mode == TrainMode.latent_diffusion:
-                    """
-                    main latent training mode!
-                    """
-                    # diffusion on the latent
-                    t, weight = self.T_sampler.sample(len(cond), cond.device)
-                    if self.conf.latent_unit_normalize:
-                        cond = F.normalize(cond, dim=1)
-                    latent_losses = self.latent_sampler.training_losses(
-                        model=self.model.latent_net, x_start=cond, t=t)
-                    # train only do the latent diffusion
-                    losses = {
-                        'latent': latent_losses['loss'],
-                        'loss': latent_losses['loss']
-                    }
-                elif self.conf.train_mode == TrainMode.latent_2d_diffusion:
-                    # cannot do the z normalization
-                    if self.conf.latent_znormalize:
-                        assert self.conf.latent_running_znormalize
-                    assert not self.conf.latent_unit_normalize
-
-                    # train both model and latent at the same time
-                    self.model: BeatGANsAutoencModel
-                    with torch.no_grad():
-                        with amp.autocast(self.conf.fp16):
-                            # must use the ema model for the best quality
-                            # (n, c), (n, c, 4, 4)
-                            _, cond_2d = self.ema_model.encoder.forward(
-                                x_start, return_2d_feature=True)
-
-                    if self.conf.latent_znormalize and self.conf.latent_running_znormalize:
-                        cond_2d = self.znormalizer.forward(cond_2d)
-
-                    # diffusion on the latent
-                    t, weight = self.T_sampler.sample(len(cond_2d),
-                                                      cond_2d.device)
-                    latent_losses = self.latent_sampler.training_losses(
-                        model=self.model.latent_net, x_start=cond_2d, t=t)
-
-                    # add the latent loss to the overall loss
-                    losses = {
-                        'latent': latent_losses['loss'],
-                        'loss': latent_losses['loss']
-                    }
-                else:
-                    raise NotImplementedError()
-            elif self.conf.train_mode == TrainMode.parallel_latent_diffusion_pred:
-                # t_cond = t
-                # train the Unet with the best predicted diffused latent
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-                # diffuse the cond
-                # need to sample the same T
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                t_cond = t
-                # optimizing this would not change the cond vector because we minimize the epsilon predcition loss
-                # where the epsilon is not differentiable
+                # diffusion on the latent
+                t, weight = self.T_sampler.sample(len(cond), cond.device)
+                if self.conf.latent_unit_normalize:
+                    cond = F.normalize(cond, dim=1)
                 latent_losses = self.latent_sampler.training_losses(
                     model=self.model.latent_net, x_start=cond, t=t)
-                # recover the cond
-                # gradient must goes through the pred_cond
-                pred_cond = latent_losses['pred_xstart']
-
-                if self.conf.train_cond0_prob > 0:
-                    # replace some portion of cond with cond0
-                    # to encourage learning of autoencoder
-                    # (n,)
-                    select = torch.rand(len(pred_cond),
-                                        device=pred_cond.device)
-                    # use the cond0 ?
-                    select = select < self.conf.train_cond0_prob
-                    pred_cond = torch.where(select[:, None], cond, pred_cond)
-                    t_cond = torch.where(
-                        select,
-                        # t = 0
-                        torch.tensor([0] * len(pred_cond),
-                                     device=pred_cond.device),
-                        t_cond,
-                    )
-
-                # use the recovered cond for training
-                # we hope the train the encoder via the recovered cond
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    model_kwargs={
-                        #   'cond': pred_cond,
-                        #   't_cond': t_cond
-                        'cond': cond,
-                    },
-                    t=t)
-                losses['latent'] = latent_losses['loss']
-                losses['loss'] = losses['loss'] + losses['latent']
-            elif self.conf.train_mode == TrainMode.parallel_latent_diffusion_pred_tt:
-                # tt => t is not shared between latent and the unet
-                # hypothesis: it will help the unet learns to use the latent insomuch as it's worth.
-
-                # train the Unet with the best predicted diffused latent
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start).float()
-                t_cond, weight = self.T_sampler.sample(len(cond),
-                                                       x_start.device)
-                # optimizing this would not change the cond vector because we minimize the epsilon predcition loss
-                # where the epsilon is not differentiable
-                latent_losses = self.latent_sampler.training_losses(
-                    model=self.model.latent_net, x_start=cond, t=t_cond)
-                # recover the cond, since t is diverse, pred_cond will be diverse
-                # hypothesis: it will introduce unet to different levels of usefulness letents
-                # gradient must goes through the pred_cond
-                pred_cond = latent_losses['pred_xstart']
-
-                if self.conf.train_cond0_prob > 0:
-                    # replace some portion of cond with cond0
-                    # to encourage learning of autoencoder
-                    # (n,)
-                    select = torch.rand(len(pred_cond),
-                                        device=pred_cond.device)
-                    # use the cond0 ?
-                    select = select < self.conf.train_cond0_prob
-                    pred_cond = torch.where(select[:, None], cond, pred_cond)
-                    t_cond = torch.where(
-                        select,
-                        # t = 0
-                        torch.tensor([0] * len(pred_cond),
-                                     device=pred_cond.device),
-                        t_cond,
-                    )
-
-                # use the recovered cond for training
-                # we hope the train the encoder via the recovered cond
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    # introduce t_cond = in case t != t_cond
-                    model_kwargs={
-                        'cond': pred_cond,
-                        't_cond': t_cond,
-                    },
-                    t=t)
-                losses['latent'] = latent_losses['loss']
-                losses['loss'] = losses['loss'] + losses['latent']
-            elif self.conf.train_mode == TrainMode.parallel_latent_diffusion_noisy:
-                # train the Unet with the best predicted diffused latent
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    cond = self.model.encoder(x_start)
-                # diffuse the cond
-                # need to sample the same T
-                t, weight = self.T_sampler.sample(len(x_start), x_start.device)
-                # optimizing this would not change the cond vector because we minimize the epsilon predcition loss
-                # where the epsilon is not differentiable
-                latent_losses = self.latent_sampler.training_losses(
-                    model=self.model.latent_net, x_start=cond, t=t)
-                # gradient must goes through the cond_t
-                cond_t = latent_losses['x_t']
-                # use the recovered cond for training
-                # we hope the train the encoder via the recovered cond
-                losses = self.sampler.training_losses(
-                    model=self.model,
-                    x_start=x_start,
-                    model_kwargs={'cond': cond_t},
-                    t=t)
-                losses['latent'] = latent_losses['loss']
-                losses['loss'] = losses['loss'] + losses['latent']
-            elif self.conf.train_mode == TrainMode.latent_mmd:
-                self.model: BeatGANsAutoencModel
-                with amp.autocast(self.conf.fp16):
-                    with torch.no_grad():
-                        # don't train the main network
-                        cond = self.model.encoder(x_start)
-                loss = self.sampler.mmd_loss(self.model, cond)
+                # train only do the latent diffusion
                 losses = {
-                    'mmd': loss,
-                    'loss': loss,
+                    'latent': latent_losses['loss'],
+                    'loss': latent_losses['loss']
                 }
             else:
                 raise NotImplementedError()
@@ -967,7 +374,7 @@ class LitModel(pl.LightningModule):
         after each training step ...
         """
         if self.is_last_accum(batch_idx):
-            # only apply ema on the last gradient accumulation step, 
+            # only apply ema on the last gradient accumulation step,
             # if it is the iteration that has optimizer.step()
             if self.conf.train_mode == TrainMode.latent_diffusion:
                 # it trains only the latent hence change only the latent
@@ -1032,36 +439,7 @@ class LitModel(pl.LightningModule):
                             sampler=self.eval_sampler,
                             latent_sampler=self.eval_latent_sampler,
                             conds_mean=self.conds_mean,
-                            conds_std=self.conds_std,
-                            normalizer=self.znormalizer)
-                    elif self.conf.train_mode.is_parallel_latent_diffusion():
-                        if use_xstart:
-                            if no_latent_diff:
-                                # simulate highest quality autoencoding
-                                gen = render_condition_no_latent_diffusion(
-                                    conf=self.conf,
-                                    model=model,
-                                    x_T=x_T,
-                                    x_start=_xstart,
-                                    cond=None,
-                                    sampler=self.eval_sampler,
-                                    latent_sampler=self.eval_latent_sampler)
-                            else:
-                                gen = render_condition(
-                                    conf=self.conf,
-                                    model=model,
-                                    x_T=x_T,
-                                    x_start=_xstart,
-                                    cond=None,
-                                    sampler=self.eval_sampler,
-                                    latent_sampler=self.eval_latent_sampler)
-                        else:
-                            gen = render_uncondition(
-                                conf=self.conf,
-                                model=model,
-                                x_T=x_T,
-                                sampler=self.eval_sampler,
-                                latent_sampler=self.eval_latent_sampler)
+                            conds_std=self.conds_std)
                     else:
                         if not use_xstart and self.conf.model_type.has_noise_to_cond(
                         ):
@@ -1152,11 +530,6 @@ class LitModel(pl.LightningModule):
                 else:
                     do(self.model, '', use_xstart=True, save_real=True)
                     do(self.ema_model, '_ema', use_xstart=True, save_real=True)
-                    if self.conf.train_mode.is_interpolate():
-                        do(self.model,
-                           '_intp',
-                           use_xstart=True,
-                           interpolate=True)
 
     def evaluate_scores(self):
         """
@@ -1173,8 +546,7 @@ class LitModel(pl.LightningModule):
                                  val_data=self.val_data,
                                  latent_sampler=self.eval_latent_sampler,
                                  conds_mean=self.conds_mean,
-                                 conds_std=self.conds_std,
-                                 normalizer=self.znormalizer)
+                                 conds_std=self.conds_std)
             if self.global_rank == 0:
                 self.logger.experiment.add_scalar(f'FID{postfix}', score,
                                                   self.num_samples)
@@ -1290,7 +662,6 @@ class LitModel(pl.LightningModule):
         #                        device=self.device,
         #                        val_data=self.val_data)
         # self.log('lpips', score)
-
         """
         "infer" = predict the latent variables using the encoder on the whole dataset
         """
@@ -1317,7 +688,6 @@ class LitModel(pl.LightningModule):
                         'conds_mean': conds_mean,
                         'conds_std': conds_std,
                     }, save_path)
-
         """
         "infer+render" = predict the latent variables using the encoder on the whole dataset
         THIS ALSO GENERATE CORRESPONDING IMAGES
@@ -1347,7 +717,6 @@ class LitModel(pl.LightningModule):
                             'conds_mean': conds_mean,
                             'conds_std': conds_std,
                         }, save_path)
-
         """
         "interpolation" = FID of the 0.5 interpolated images between random pairs
         This is not used in the paper.
@@ -1415,7 +784,6 @@ class LitModel(pl.LightningModule):
                     latent_sampler=latent_sampler,
                     conds_mean=self.conds_mean,
                     conds_std=self.conds_std,
-                    normalizer=self.znormalizer,
                     remove_cache=False,
                     clip_latent_noise=clip_latent_noise,
                 )
@@ -1427,7 +795,6 @@ class LitModel(pl.LightningModule):
                         name += '_clip'
                     name += f'_ema_T{T}_Tlatent{T_latent}'
                     self.log(name, score)
-
         """
         "recon<T>" = reconstruction & autoencoding (without noise inversion)
         """
@@ -1452,7 +819,6 @@ class LitModel(pl.LightningModule):
                                        latent_sampler=None)
                 for k, v in score.items():
                     self.log(f'{k}_ema_T{T}', v)
-
         """
         "inv<T>" = reconstruction with noise inversion
         """
