@@ -23,45 +23,40 @@ class ddpm(TrainConfig):
 
 
 @dataclass
-class autoenc(TrainConfig):
+class autoenc_base(TrainConfig):
+    postfix: str = '_lightning'
+    batch_size: int = 32
     beatgans_gen_type: GenerativeType = GenerativeType.ddim
     beta_scheduler: str = 'linear'
-    batch_size: int = 32
-    sample_size: int = 32
     data_name: str = 'ffhq'
     diffusion_type: str = 'beatgans'
+    eval_ema_every_samples: int = 200_000
+    eval_every_samples: int = 200_000
     fp16: bool = True
     lr: float = 1e-4
     model_name: ModelName = ModelName.beatgans_autoenc
     net_attn: Tuple[int] = (16, )
     net_beatgans_attn_head: int = 1
-    net_beatgans_scale_shift_norm: bool = True
-    net_beatgans_style_time_mode: TimeMode = TimeMode.time_and_style
     net_beatgans_embed_channels: int = 512
     net_beatgans_enc_out_channels: int = 2048
-    net_ch_mult: Tuple[int] = (1, 2, 4, 8)
-    net_ch: int = 64
-    T_eval: int = 20
-    T: int = 1000
-
-
-@dataclass
-class autoenc_base(autoenc):
-    postfix: str = '_lightning'
-    eval_every_samples: int = 200_000
-    eval_ema_every_samples: int = 200_000
-    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8)
-    net_enc_pool: str = 'adaptivenonzero'
     net_beatgans_enc_out_channels: int = 512
-    net_beatgans_style_time_mode: TimeMode = TimeMode.time_style_separate
-    net_beatgans_resnet_condition_scale_bias: float = 0
-    net_beatgans_resnet_two_cond: bool = True
-    net_beatgans_resnet_time_emb_2xwidth: bool = False
     net_beatgans_resnet_cond_emb_2xwidth: bool = False
+    net_beatgans_resnet_condition_scale_bias: float = 0
+    net_beatgans_resnet_time_emb_2xwidth: bool = False
     net_beatgans_resnet_time_first: bool = True
-    net_enc_vectorizer_type: VectorizerType = None
+    net_beatgans_resnet_two_cond: bool = True
+    net_beatgans_scale_shift_norm: bool = True
     net_beatgans_style_layer: int = 8
     net_beatgans_style_lr_mul: float = 0.1
+    net_beatgans_style_time_mode: TimeMode = TimeMode.time_style_separate
+    net_ch_mult: Tuple[int] = (1, 2, 4, 8)
+    net_ch: int = 64
+    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8)
+    net_enc_pool: str = 'adaptivenonzero'
+    net_enc_vectorizer_type: VectorizerType = None
+    sample_size: int = 32
+    T_eval: int = 20
+    T: int = 1000
 
 
 

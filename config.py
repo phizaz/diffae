@@ -133,11 +133,10 @@ class TrainConfig(BaseConfig):
     net_beatgans_gradient_checkpoint: bool = False
     net_beatgans_style_layer: int = 8
     net_beatgans_style_lr_mul: float = 0.1
-    net_beatgans_style_time_mode: TimeMode = TimeMode.time_and_style
+    net_beatgans_style_time_mode: TimeMode = None
     net_beatgans_time_style_layer: int = 2
     net_beatgans_resnet_condition_scale_bias: float = 1
     net_beatgans_resnet_two_cond: bool = False
-    net_beatgans_resnet_time_first: bool = False
     net_beatgans_resnet_time_emb_2xwidth: bool = True
     net_beatgans_resnet_cond_emb_2xwidth: bool = True
     net_beatgans_resnet_use_zero_module: bool = True
@@ -668,7 +667,6 @@ class TrainConfig(BaseConfig):
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
-                resnet_time_first=self.net_beatgans_resnet_time_first,
                 resnet_time_emb_2xwidth=self.
                 net_beatgans_resnet_time_emb_2xwidth,
                 resnet_cond_emb_2xwidth=self.
@@ -773,7 +771,6 @@ class TrainConfig(BaseConfig):
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
-                resnet_time_first=self.net_beatgans_resnet_time_first,
                 resnet_time_emb_2xwidth=self.
                 net_beatgans_resnet_time_emb_2xwidth,
                 resnet_cond_emb_2xwidth=self.

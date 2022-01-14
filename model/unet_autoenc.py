@@ -13,17 +13,6 @@ from choices import *
 class TimeMode(Enum):
     # style only
     time_style_separate = 'timestylesep'
-    # style is a function of time
-    time_style_time_separate = 'timestyletime'
-    time_style_time_residual_separate = 'timestyletimeres'
-    # style and time are independent
-    time_and_style = 'timestyle'
-    # style depends on time
-    time_varying_style = 'timevarystyle'
-    # time + cond = style
-    time_cond_is_style = 'timecondisstyle'
-    # time + cond = style => style + time => emb
-    time_cond_is_style_concat = 'timecondisstyleconcat'
 
 
 class VectorizerType(Enum):
@@ -49,7 +38,7 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     enc_channel_mult: Tuple[int] = None
     enc_grad_checkpoint: bool = False
     enc_tanh: bool = False
-    style_time_mode: TimeMode = TimeMode.time_style_time_separate
+    style_time_mode: TimeMode = None 
     # unconditioned style layers
     style_layer: int = 8
     # film-layers conditioned on time
@@ -97,10 +86,7 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
             name += f'-init-merge{self.merger_type.value}'
 
         name += f'/{self.style_time_mode.value}'
-        if self.style_time_mode == TimeMode.time_style_time_separate:
-            name += f'-layer{self.style_layer}'
-        else:
-            name += f'-identity'
+        name += f'-identity'
 
         # elif self.style_time_mode == TimeMode.time_and_style:
         #     name += f'-layer{self.style_layer}lr{self.style_lr_mul}'
@@ -363,7 +349,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
     def encode(self, x):
         assert not self.conf.use_external_encoder
         cond = self.encoder.forward(x)
-        return {'cond': cond, 'cond2': None}
+        return {'cond': cond}
 
     @property
     def stylespace_sizes(self):
@@ -406,7 +392,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 style=None,
                 noise=None,
                 t_cond=None,
-                cond2=None,
                 stylespace_cond=None,
                 **kwargs):
         """
@@ -450,7 +435,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
 
                     tmp = self.encode(x_start)
                     cond = tmp['cond']
-                    cond2 = tmp['cond2']
 
         if t is not None:
             _t_emb = timestep_embedding(t, self.conf.model_channels)
@@ -469,8 +453,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         else:
             raise NotImplementedError()
 
-        # only used with three conds
-        cond_emb2 = None
         if self.conf.resnet_two_cond:
             # two cond: first = time emb, second = cond_emb
             emb = res.time_emb
@@ -531,8 +513,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                     if stylespace_cond is None:
                         h = self.input_blocks[k](h,
                                                  emb=enc_time_emb,
-                                                 cond=enc_cond_emb,
-                                                 cond2=cond_emb2)
+                                                 cond=enc_cond_emb)
                     else:
                         if i == 0 and j == 0:
                             # the first block is just a conv not resblock
@@ -552,8 +533,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             if stylespace_cond is None:
                 h = self.middle_block(h,
                                       emb=mid_time_emb,
-                                      cond=mid_cond_emb,
-                                      cond2=cond_emb2)
+                                      cond=mid_cond_emb)
             else:
                 for each in self.middle_block:
                     if isinstance(each, ResBlock):
@@ -698,7 +678,7 @@ class TimeTwoStyleSeperateEmbed(nn.Module):
             linear(time_out_channels, time_out_channels),
         )
 
-    def forward(self, time_emb=None, cond=None, cond2=None, **kwargs):
+    def forward(self, time_emb=None, cond=None, **kwargs):
         if time_emb is None:
             # happens with autoenc training mode
             time_emb = None
@@ -706,8 +686,7 @@ class TimeTwoStyleSeperateEmbed(nn.Module):
             time_emb = self.time_embed(time_emb)
         return EmbedReturn(emb=cond,
                            time_emb=time_emb,
-                           style=cond,
-                           style2=cond2)
+                           style=cond)
 
 
 class TimeStyleSeperateEmbed(nn.Module):

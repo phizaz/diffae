@@ -70,7 +70,6 @@ class BeatGANsUNetConfig(BaseConfig):
     resnet_condition_scale_bias: Union[float, Tuple[float]] = 1
     resnet_two_cond: bool = False
     resnet_cond_channels: int = None
-    resnet_time_first: bool = False
     # whether to scale and shift, or just scale only
     resnet_time_emb_2xwidth: bool = True
     # default: False (scale + shift doesn't improve)
@@ -107,8 +106,7 @@ class BeatGANsUNetConfig(BaseConfig):
             name += f'-bias({biases[0]},{biases[1]})'
         if self.resnet_two_cond:
             name += '-twocond'
-            if self.resnet_time_first:
-                name += '-timefirst'
+            name += '-timefirst'
         if self.resnet_time_emb_2xwidth:
             name += '-time2x'
         if self.resnet_cond_emb_2xwidth:
@@ -155,7 +153,6 @@ class BeatGANsUNetModel(nn.Module):
             use_condition=True,
             condition_scale_bias=conf.resnet_condition_scale_bias,
             two_cond=conf.resnet_two_cond,
-            time_first=conf.resnet_time_first,
             time_emb_2xwidth=conf.resnet_time_emb_2xwidth,
             cond_emb_2xwidth=conf.resnet_cond_emb_2xwidth,
             use_zero_module=conf.resnet_use_zero_module,

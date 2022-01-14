@@ -80,7 +80,6 @@ class TimestepBlock(nn.Module):
                 emb=None,
                 cond=None,
                 lateral=None,
-                cond2=None,
                 stylespace_cond=None):
         """
         Apply the module to `x` given `emb` timestep embeddings.
@@ -97,7 +96,6 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
                 emb=None,
                 cond=None,
                 lateral=None,
-                cond2=None,
                 stylespace_cond=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
@@ -105,7 +103,6 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
                           emb=emb,
                           cond=cond,
                           lateral=lateral,
-                          cond2=cond2,
                           stylespace_cond=stylespace_cond)
             else:
                 x = layer(x)
@@ -134,10 +131,6 @@ class ResBlockConfig(BaseConfig):
     two_cond: bool = False
     # number of encoders' output channels
     cond_emb_channels: int = None
-    cond2_emb_channels: int = None
-    # whether to condition with time before encoder's output latent
-    # suggest: True
-    time_first: bool = False
     # whether to use both scale & shift for time condition
     time_emb_2xwidth: bool = True
     # whether to use both scale & shift for encoder's output condition
@@ -152,7 +145,6 @@ class ResBlockConfig(BaseConfig):
     def __post_init__(self):
         self.out_channels = self.out_channels or self.channels
         self.cond_emb_channels = self.cond_emb_channels or self.emb_channels
-        self.cond2_emb_channels = self.cond2_emb_channels or self.emb_channels
 
     def make_model(self):
         return ResBlock(self)
@@ -285,7 +277,6 @@ class ResBlock(TimestepBlock):
                 emb=None,
                 cond=None,
                 lateral=None,
-                cond2=None,
                 stylespace_cond=None):
         """
         Apply the block to a Tensor, conditioned on a timestep embedding.
@@ -295,7 +286,7 @@ class ResBlock(TimestepBlock):
             lateral: lateral connection from the encoder
         """
         return torch_checkpoint(
-            self._forward, (x, emb, cond, lateral, cond2, stylespace_cond),
+            self._forward, (x, emb, cond, lateral, stylespace_cond),
             self.conf.use_checkpoint)
 
     def _forward(
@@ -304,7 +295,6 @@ class ResBlock(TimestepBlock):
         emb=None,
         cond=None,
         lateral=None,
-        cond2=None,
         stylespace_cond=None,
         # not used yet, just in case
         stylespace_cond_in=None,
@@ -355,16 +345,12 @@ class ResBlock(TimestepBlock):
             else:
                 cond_out = None
 
-            cond2_out = None
-
             # this is the new refactored code
             h = apply_conditions(
                 h=h,
                 emb=emb_out,
                 cond=cond_out,
-                cond2=cond2_out,
                 layers=self.out_layers,
-                time_first=self.conf.time_first,
                 scale_bias=self.conf.condition_scale_bias,
                 in_channels=self.conf.out_channels,
                 up_down_layer=None,
@@ -377,9 +363,7 @@ def apply_conditions(
     h,
     emb=None,
     cond=None,
-    cond2=None,
     layers: nn.Sequential = None,
-    time_first: bool = True,
     scale_bias: float = 1,
     in_channels: int = 512,
     up_down_layer: nn.Module = None,
@@ -390,7 +374,6 @@ def apply_conditions(
     Args:
         emb: time conditional (ready to scale + shift)
         cond: encoder's conditional (read to scale + shift)
-        cond2: second encoder's conditional (ready to scale + shift)
     """
     two_cond = emb is not None and cond is not None
 
@@ -403,11 +386,8 @@ def apply_conditions(
         # adjusting shapes
         while len(cond.shape) < len(h.shape):
             cond = cond[..., None]
-
-        if time_first:
-            scale_shifts = [emb, cond]
-        else:
-            scale_shifts = [cond, emb]
+        # time first
+        scale_shifts = [emb, cond]
     else:
         # "cond" is not used with single cond mode
         scale_shifts = [emb]
