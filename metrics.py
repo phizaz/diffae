@@ -185,7 +185,6 @@ def evaluate_fid(
     latent_sampler: Sampler = None,
     conds_mean=None,
     conds_std=None,
-    normalizer: RunningNormalizer = None,
     remove_cache: bool = True,
     clip_latent_noise: bool = False,
 ):
@@ -242,27 +241,8 @@ def evaluate_fid(
                     sampler=sampler,
                     latent_sampler=latent_sampler,
                     conds_mean=conds_mean,
-                    conds_std=conds_std,
-                    normalizer=normalizer).cpu()
-                # if conf.model_type.has_noise_to_cond():
-                #     # special case
-                #     model: BeatGANsAutoencModel
-                #     cond = torch.randn(len(x_T), conf.style_ch, device=device)
-                #     cond = model.noise_to_cond(cond)
-                # else:
-                #     cond = None
+                    conds_std=conds_std).cpu()
 
-                # if conf.train_mode.is_parallel_latent_diffusion():
-                #     batch_images = render_uncondition(
-                #         conf,
-                #         model,
-                #         x_T,
-                #         sampler=sampler,
-                #         latent_sampler=latent_sampler).cpu()
-                # else:
-                #     batch_images = sampler.sample(model=model,
-                #                                   noise=x_T,
-                #                                   cond=cond).cpu()
                 batch_images = (batch_images + 1) / 2
                 # keep the generated images
                 for j in range(len(batch_images)):
@@ -290,7 +270,6 @@ def evaluate_fid(
                         latent_sampler=latent_sampler,
                         conds_mean=conds_mean,
                         conds_std=conds_std,
-                        normalizer=normalizer,
                         clip_latent_noise=clip_latent_noise,
                     ).cpu()
                     batch_images = (batch_images + 1) / 2

@@ -10,7 +10,6 @@ def render_uncondition(conf: TrainConfig,
                        latent_sampler: Sampler,
                        conds_mean=None,
                        conds_std=None,
-                       normalizer: RunningNormalizer = None,
                        clip_latent_noise: bool = False):
     device = x_T.device
     if conf.train_mode == TrainMode.diffusion:
@@ -47,10 +46,7 @@ def render_uncondition(conf: TrainConfig,
         )
 
         if conf.latent_znormalize:
-            if conf.latent_running_znormalize:
-                cond = normalizer.denormalize(cond)
-            else:
-                cond = cond * conds_std.to(device) + conds_mean.to(device)
+            cond = cond * conds_std.to(device) + conds_mean.to(device)
 
         if conf.train_mode == TrainMode.latent_2d_diffusion:
             # apply the pooling and linear of the encoder

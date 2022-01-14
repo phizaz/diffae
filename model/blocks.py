@@ -18,58 +18,6 @@ from .nn import (CheckpointGNShiftScaleSiLU, GatedConv, GateType, avg_pool_nd,
 class ScaleAt(Enum):
     after_norm = 'afternorm'
 
-
-class RunningNormalizer(nn.Module):
-    def __init__(self, num_channels):
-        super().__init__()
-        self.eps = 1e-5
-        self.register_buffer('mean', th.zeros(num_channels))
-        self.register_buffer('sqmean', th.zeros(num_channels))
-        self.register_buffer('num_batches', th.tensor(0))
-
-    @property
-    def std(self):
-        var = self.sqmean - self.mean.pow(2)
-        return var.sqrt() + self.eps
-
-    def mean_std(self, x):
-        if x.dim() == 4:
-            mean = self.mean[None, :, None, None]
-            std = self.std[None, :, None, None]
-        elif x.dim() == 2:
-            mean = self.mean[None, :]
-            std = self.std[None, :]
-        else:
-            raise NotImplementedError()
-
-        return mean, std
-
-    def forward(self, x):
-        if self.training:
-            with th.no_grad():
-                if x.dim() == 4:
-                    # (c, )
-                    first = x.mean(dim=[0, 2, 3])
-                    second = x.pow(2).mean(dim=[0, 2, 3])
-                elif x.dim() == 2:
-                    first = x.mean(dim=0)
-                    second = x.pow(2).mean(dim=0)
-                else:
-                    raise NotImplementedError()
-                self.num_batches += 1
-                self.mean += 1 / self.num_batches * (first - self.mean)
-                self.sqmean += 1 / self.num_batches * (second - self.sqmean)
-
-        mean, std = self.mean_std(x)
-        # print('mean:', mean)
-        # print('var:', var)
-        return (x - mean) / std
-
-    def denormalize(self, x):
-        mean, std = self.mean_std(x)
-        return x * std + mean
-
-
 class TimestepBlock(nn.Module):
     """
     Any module where forward() takes timestep embeddings as a second argument.
@@ -399,10 +347,6 @@ def apply_conditions(
     # post layers will contain only the conv
     mid_layers, post_layers = post_layers[:-2], post_layers[-2:]
 
-    # if not used the styleconv, it will remain None
-    style_cond = None
-
-    # default conditioning method!
     h = pre_layers(h)
     # scale and shift for each condition
     for i, (scale, shift) in enumerate(scale_shifts):
@@ -416,12 +360,7 @@ def apply_conditions(
     # upscale or downscale if any just before the last conv
     if up_down_layer is not None:
         h = up_down_layer(h)
-    # last conv layer
-    if style_cond is not None:
-        # when the conv layer is modulated conv
-        h = post_layers(h, cond=style_cond)
-    else:
-        h = post_layers(h)
+    h = post_layers(h)
     return h
 
 
