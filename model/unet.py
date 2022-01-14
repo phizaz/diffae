@@ -411,7 +411,6 @@ class BeatGANsEncoderConfig(BaseConfig):
     use_new_attention_order: bool = False
     pool: str = "adaptive"
     pool_tail_layer: int = None
-    last_act: Activation = Activation.none
 
     @property
     def name(self):
@@ -617,8 +616,6 @@ class BeatGANsEncoderModel(nn.Module):
         else:
             raise NotImplementedError(f"Unexpected {conf.pool} pooling")
 
-        self.last_act = self.conf.last_act.get_act()
-
     def convert_to_fp16(self):
         """
         Convert the torso of the model to float16.
@@ -661,7 +658,6 @@ class BeatGANsEncoderModel(nn.Module):
 
         h_2d = h
         h = self.out(h)
-        h = self.last_act(h)
 
         if return_2d_feature:
             return h, h_2d
@@ -673,7 +669,6 @@ class BeatGANsEncoderModel(nn.Module):
         transform the last 2d feature into a flatten vector
         """
         h = self.out(x)
-        h = self.last_act(h)
         return h
 
 

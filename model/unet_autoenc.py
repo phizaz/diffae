@@ -193,7 +193,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 use_new_attention_order=conf.use_new_attention_order,
                 pool=conf.enc_pool,
                 pool_tail_layer=conf.enc_pool_tail_layer,
-                last_act=Activation.none,
             ).make_model()
 
         if conf.latent_net_conf is not None:

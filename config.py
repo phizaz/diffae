@@ -276,11 +276,6 @@ class TrainConfig(BaseConfig):
                     tmp += f'-mmd{self.mmd_coef}alphas(' + ','.join(
                         str(x) for x in self.mmd_alphas) + ')'
 
-        if self.train_mode.is_interpolate():
-            tmp += f'_{self.train_mode.value}-p{self.train_interpolate_prob}'
-            if self.train_interpolate_img:
-                tmp += '-img'
-
         if self.train_mode.use_latent_net():
             # latent diffusion configs
             tmp += f'_latentddpm-Tgen{self.latent_T_eval}'
@@ -316,41 +311,6 @@ class TrainConfig(BaseConfig):
 
         if self.fp16:
             tmp += '_fp16'
-
-        if self.train_mode.is_manipulate():
-            pass
-        elif self.train_mode.is_diffusion():
-            pass
-        elif self.train_mode.is_latent_diffusion():
-            pass
-        elif self.train_mode == TrainMode.autoenc:
-            tmp += '_autoenc'
-        elif self.train_mode == TrainMode.latent_mmd:
-            tmp += '_latentmmd'
-            tmp += f'-mmd{self.mmd_coef}alphas(' + ','.join(
-                str(x) for x in self.mmd_alphas) + ')'
-        elif self.train_mode == TrainMode.generative_latent:
-            tmp += '_genlatent'
-            if self.chamfer_coef != 1:
-                tmp += f'-coef{self.chamfer_coef}'
-            if self.chamfer_type != ChamferType.chamfer:
-                tmp += f'-{self.chamfer_type.value}'
-        elif self.train_mode == TrainMode.parallel_latent_diffusion_pred:
-            tmp += '_latentdiffpred'
-            if self.train_cond0_prob > 0:
-                tmp += f'-p{self.train_cond0_prob}'
-        elif self.train_mode == TrainMode.parallel_latent_diffusion_pred_tt:
-            tmp += '_latentdiffpredtt'
-            if self.train_cond0_prob > 0:
-                tmp += f'-p{self.train_cond0_prob}'
-        elif self.train_mode == TrainMode.parallel_latent_diffusion_noisy:
-            tmp += '_latentdiffnoisy'
-        else:
-            raise NotImplementedError()
-
-        if self.train_mode.is_parallel_latent_diffusion():
-            if not self.train_pred_xstart_detach:
-                tmp += '-notdetach'
 
         if self.pretrain is not None:
             tmp += f'_pt{self.pretrain.name}'
@@ -623,18 +583,7 @@ class TrainConfig(BaseConfig):
         else:
             raise NotImplementedError()
 
-        if self.model_name == ModelName.default_ddpm:
-            self.model_type = ModelType.ddpm
-            self.model_conf = UNetConfig(
-                img_size=self.img_size,
-                T=self.T,
-                ch=self.net_ch,
-                ch_mult=self.net_ch_mult,
-                attn=self.net_attn,
-                num_res_blocks=self.net_num_res_blocks,
-                dropout=self.dropout,
-            )
-        elif self.model_name == ModelName.beatgans_ddpm:
+        if self.model_name == ModelName.beatgans_ddpm:
             self.model_type = ModelType.ddpm
             self.model_conf = BeatGANsUNetConfig(
                 attention_resolutions=self.net_attn,
@@ -655,13 +604,10 @@ class TrainConfig(BaseConfig):
                 out_channels=self.model_out_channels,
                 resblock_updown=self.net_resblock_updown,
                 use_checkpoint=self.net_beatgans_gradient_checkpoint,
-                use_fp16=False,
                 use_new_attention_order=False,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
-                resnet_time_emb_2xwidth=self.
-                net_beatgans_resnet_time_emb_2xwidth,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 resnet_scale_at=self.net_beatgans_resnet_scale_at,
@@ -669,21 +615,11 @@ class TrainConfig(BaseConfig):
             )
         elif self.model_name in [
                 ModelName.beatgans_autoenc,
-                ModelName.beatgans_vaeddpm,
-                ModelName.beatgans_mmddpm,
-                ModelName.beatgans_gen_latent,
         ]:
             cls = BeatGANsAutoencConfig
             # supports both autoenc and vaeddpm
             if self.model_name == ModelName.beatgans_autoenc:
                 self.model_type = ModelType.autoencoder
-            elif self.model_name == ModelName.beatgans_vaeddpm:
-                self.model_type = ModelType.vaeddpm
-            elif self.model_name == ModelName.beatgans_mmddpm:
-                self.model_type = ModelType.mmdddpm
-            elif self.model_name == ModelName.beatgans_gen_latent:
-                self.model_type = ModelType.genlatent
-                cls = LatentGenerativeModelConfig
             else:
                 raise NotImplementedError()
 
