@@ -147,9 +147,6 @@ class ResBlockConfig(BaseConfig):
     lateral_channels: int = None
     gate_type: GateType = None
     gate_init: float = None
-    # whether to apply another normalization after the last convolution
-    # suggest: False, it doesn't improve
-    use_after_norm: bool = False
     # whether to init the convolution with zero weights
     # this is default from BeatGANs and seems to help learning
     use_zero_module: bool = True
@@ -186,13 +183,11 @@ class ResBlock(TimestepBlock):
         # IN LAYERS
         #############################
         assert conf.lateral_channels is None
-        layers = []
-        layers += [
+        layers = [
             normalization(conf.channels),
             nn.SiLU(),
+            conv_nd(conf.dims, conf.channels, conf.out_channels, 3, padding=1)
         ]
-        layers.append(
-            conv_nd(conf.dims, conf.channels, conf.out_channels, 3, padding=1))
         self.in_layers = nn.Sequential(*layers)
         # self.in_layers = nn.Sequential(
         #     normalization(conf.channels),
@@ -243,10 +238,10 @@ class ResBlock(TimestepBlock):
             #############################
             # original version
             conv = conv_nd(conf.dims,
-                            conf.out_channels,
-                            conf.out_channels,
-                            3,
-                            padding=1)
+                           conf.out_channels,
+                           conf.out_channels,
+                           3,
+                           padding=1)
             if conf.use_zero_module:
                 # zere out the weights
                 # it seems to help training
@@ -266,13 +261,6 @@ class ResBlock(TimestepBlock):
                 conv,
             ]
             self.out_layers = nn.Sequential(*layers)
-
-        if conf.use_after_norm:
-            # same as stylegan1 demodulation
-            self.after_norm = nn.GroupNorm(conf.out_channels,
-                                           conf.out_channels)
-        else:
-            self.after_norm = None
 
         #############################
         # SKIP LAYERS
@@ -381,8 +369,6 @@ class ResBlock(TimestepBlock):
                 time_first=self.conf.time_first,
                 scale_bias=self.conf.condition_scale_bias,
                 in_channels=self.conf.out_channels,
-                use_after_norm=self.conf.use_after_norm,
-                after_norm=self.after_norm,
                 up_down_layer=None,
             )
 
@@ -398,8 +384,6 @@ def apply_conditions(
     time_first: bool = True,
     scale_bias: float = 1,
     in_channels: int = 512,
-    use_after_norm: bool = False,
-    after_norm: nn.Module = None,
     up_down_layer: nn.Module = None,
 ):
     """
@@ -481,9 +465,6 @@ def apply_conditions(
         h = post_layers(h, cond=style_cond)
     else:
         h = post_layers(h)
-    if use_after_norm and scale is not None:
-        # only applies when there is a scaling operation
-        h = after_norm(h)
     return h
 
 

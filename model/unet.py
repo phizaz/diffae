@@ -78,10 +78,6 @@ class BeatGANsUNetConfig(BaseConfig):
     ###
     resnet_gate_type: GateType = None
     resnet_gate_init: float = None
-    # additional normalization layer after the last convolution of each resblock
-    # hypothesis: this is to mimic the StyleGAN2 normalization order
-    # deprecated due to no improvement
-    resnet_use_after_norm: bool = False
     # init the decoding conv layers with zero weights, this speeds up training
     # default: True (BeattGANs)
     resnet_use_zero_module: bool = True
@@ -120,8 +116,6 @@ class BeatGANsUNetConfig(BaseConfig):
             name += '-time2x'
         if self.resnet_cond_emb_2xwidth:
             name += '-cond2x'
-        if self.resnet_use_after_norm:
-            name += '-afternorm'
         if not self.resnet_use_zero_module:
             name += '-nonzero'
 
@@ -169,7 +163,6 @@ class BeatGANsUNetModel(nn.Module):
             cond_emb_2xwidth=conf.resnet_cond_emb_2xwidth,
             gate_type=conf.resnet_gate_type,
             gate_init=conf.resnet_gate_init,
-            use_after_norm=conf.resnet_use_after_norm,
             use_zero_module=conf.resnet_use_zero_module,
             # style channels for the resnet block
             cond_emb_channels=conf.resnet_cond_channels,
