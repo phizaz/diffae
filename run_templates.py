@@ -50,7 +50,6 @@ class autoenc_base(autoenc):
     postfix: str = '_lightning'
     eval_every_samples: int = 200_000
     eval_ema_every_samples: int = 200_000
-    net_beatgans_resnet_condition_type: ConditionType = ConditionType.scale_shift_hybrid
     net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8)
     net_enc_pool: str = 'adaptivenonzero'
     net_beatgans_enc_out_channels: int = 512
@@ -64,102 +63,6 @@ class autoenc_base(autoenc):
     net_beatgans_style_layer: int = 8
     net_beatgans_style_lr_mul: float = 0.1
 
-
-@dataclass
-class autoenc_base_encdeep(autoenc_base):
-    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8, 8)
-
-
-@dataclass
-class autoenc_base_encdeeper(autoenc_base):
-    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8, 8, 8)
-
-
-@dataclass
-class autoenc_adain(autoenc_base):
-    net_beatgans_resnet_condition_type: ConditionType = ConditionType.scale_shift_norm
-    net_beatgans_resnet_condition_scale_bias: Tuple[float] = (1, 0)
-    net_beatgans_resnet_time_emb_2xwidth: bool = True
-    net_beatgans_resnet_cond_emb_2xwidth: bool = False
-    net_enc_tanh: bool = True
-
-
-@dataclass
-class autoenc_init(autoenc_base):
-    beatgans_model_mean_type: ModelMeanType = ModelMeanType.start_x
-    beatgans_xstart_weight_type: XStartWeightType = XStartWeightType.eps2_safe
-    net_autoenc_time_at: CondAt = CondAt.enc
-    net_autoenc_cond_at: CondAt = CondAt.all
-    net_autoenc_has_init: bool = True
-    net_beatgans_resnet_gated: bool = True
-    net_beatgans_resnet_gate_type: GateType = GateType.alpha_add
-    net_autoenc_merger_type: MergerType = MergerType.conv1
-
-
-@dataclass
-class autoenc_tanh(autoenc_base):
-    net_enc_tanh: bool = True
-
-
-@dataclass
-class autoenc_base_20M(autoenc_base):
-    pretrain: PretrainConfig = PretrainConfig(
-        name='autoencbase',
-        path=f'logs/{autoenc_base().name}/last.ckpt',
-    )
-
-
-@dataclass
-class autoenc_identity(autoenc_base):
-    net_enc_vectorizer_type: VectorizerType = VectorizerType.identity
-
-
-@dataclass
-class autoenc_identity_20M(autoenc_identity):
-    pretrain: PretrainConfig = PretrainConfig(
-        name='autoencidentity',
-        path=f'logs/{autoenc_identity().name}/last.ckpt',
-    )
-
-
-@dataclass
-class autoenc_afternorm(autoenc_base):
-    net_enc_vectorizer_type: VectorizerType = VectorizerType.old2
-    net_beatgans_resnet_use_after_norm: bool = True
-    net_autoenc_cond_at: CondAt = CondAt.mid_dec
-    net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.before_conv
-    net_beatgans_resnet_use_zero_module: bool = False
-    net_beatgans_resnet_condition_scale_bias: float = 1
-
-
-@dataclass
-class autoenc_styleconv(autoenc_afternorm):
-    net_beatgans_resnet_use_after_norm: bool = False
-    net_beatgans_resnet_use_styleconv: bool = True
-
-
-@dataclass
-class autoenc_rc1(autoenc_base):
-    warmup: int = 0
-    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8, 8)
-    net_enc_vectorizer_type: VectorizerType = VectorizerType.identity
-    net_beatgans_resnet_condition_scale_bias: float = 1
-
-
-@dataclass
-class autoenc_base_manygpu_deep(autoenc_base):
-    data_name: str = 'ffhqlmdb256'
-    warmup: int = 0
-    net_ch_mult: Tuple[int] = (1, 2, 4, 8, 8)
-    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8, 8)
-
-
-@dataclass
-class autoenc_afternorm_manygpu_deep(autoenc_afternorm):
-    data_name: str = 'ffhqlmdb256'
-    warmup: int = 0
-    net_ch_mult: Tuple[int] = (1, 2, 4, 8, 8)
-    net_enc_channel_mult: Tuple[int] = (1, 2, 4, 8, 8)
 
 
 def encoder128(conf: TrainConfig):
@@ -183,7 +86,6 @@ def ffhq64_autoenc_12M():
     conf.net_enc_channel_mult = (1, 2, 4, 8, 8)
     conf.net_enc_vectorizer_type = VectorizerType.identity
     conf.net_beatgans_resnet_condition_scale_bias = 1
-    conf.net_beatgans_resnet_condition_type = ConditionType.scale_shift_norm
     conf.net_beatgans_resnet_time_emb_2xwidth = True
     conf.net_beatgans_resnet_cond_emb_2xwidth = False
     conf.eval_every_samples = 1_000_000
@@ -209,122 +111,6 @@ def at64_default(conf: TrainConfig):
     return conf
 
 
-def ffhq64_autoenc_cosine_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf.beta_scheduler = 'cosine'
-    conf = at64_default(conf)
-    return conf
-
-
-def ffhq64_ddpm_cosine_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf.beta_scheduler = 'cosine'
-    conf = at64_default(conf)
-    return conf
-
-
-def ffhq64_autoenc_noresupdown_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_ddpm_noresupdown_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_autoenc_halfenc_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_input_res_blocks = 1
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_ddpm_halfenc_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_input_res_blocks = 1
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_autoenc_thin_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 1
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_ddpm_thin_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 1
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_autoenc_thin_deep_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 1
-    conf.net_ch_mult = [1, 2, 4, 8, 8]
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_ddpm_thin_deep_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 1
-    conf.net_ch_mult = [1, 2, 4, 8, 8]
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_autoenc_thinner_deep_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 0
-    conf.net_num_input_res_blocks = 1
-    conf.net_ch_mult = [1, 2, 4, 8, 8]
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_autoenc_thinner_deep_encthin_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf = thinner_encthin(conf)
-    conf.net_ch_mult = [1, 2, 4, 8, 8]
-    return conf
-
-
-def thinner_encthin(conf: TrainConfig):
-    conf.net_num_res_blocks = 0
-    conf.net_num_input_res_blocks = 1
-    conf.net_enc_num_res_blocks = 1
-    conf.net_resblock_updown = False
-    return conf
-
-
 def no_attn(conf: TrainConfig):
     conf.net_attn = []
     conf.net_enc_attn = []
@@ -335,64 +121,6 @@ def no_attn(conf: TrainConfig):
 def mid_attn(conf: TrainConfig):
     conf.net_attn = []
     conf.net_enc_attn = []
-    return conf
-
-
-def ffhq64_autoenc_thinner_deep_encthin_noatt_48M():
-    conf = ffhq64_autoenc_thinner_deep_encthin_48M()
-    conf = no_attn(conf)
-    return conf
-
-
-def ffhq64_autoenc_thinner_deep_encthin_midatt_48M():
-    conf = ffhq64_autoenc_thinner_deep_encthin_48M()
-    conf = mid_attn(conf)
-    return conf
-
-
-def ffhq64_ddpm_thinner_deep_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 0
-    conf.net_num_input_res_blocks = 1
-    conf.net_ch_mult = [1, 2, 4, 8, 8]
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_ddpm_thinner_deep_noatt_48M():
-    conf = ffhq64_ddpm_thinner_deep_48M()
-    conf = no_attn(conf)
-    return conf
-
-
-def ffhq64_ddpm_thinner_deep_midatt_48M():
-    conf = ffhq64_ddpm_thinner_deep_48M()
-    conf = mid_attn(conf)
-    return conf
-
-
-def ffhq64_ddpm_thinner_deep_wide_48M():
-    conf = ffhq64_ddpm_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 0
-    conf.net_num_input_res_blocks = 1
-    conf.net_ch_mult = [4, 8, 8, 8, 8]
-    conf.net_resblock_updown = False
-    return conf
-
-
-def ffhq64_autoenc_thinner_deep_wide_48M():
-    conf = ffhq64_autoenc_12M()
-    conf.postfix = ''
-    conf = at64_default(conf)
-    conf.net_num_res_blocks = 0
-    conf.net_num_input_res_blocks = 1
-    conf.net_ch_mult = [4, 8, 8, 8, 8]
-    conf.net_enc_channel_mult = [4, 8, 8, 8, 8]
-    conf.net_resblock_updown = False
     return conf
 
 

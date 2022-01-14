@@ -83,7 +83,7 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     cond_at: CondAt = CondAt.all
     has_init: bool = False
     merger_type: MergerType = MergerType.conv1
-    latent_net_conf: MLPNetConfig = None
+    latent_net_conf: MLPSkipNetConfig = None
     noise_net_conf: NoiseNetConfig = None
 
     @property
@@ -161,85 +161,74 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         super().__init__(conf)
         self.conf = conf
 
-        if conf.resnet_three_cond:
-            # having time, cond, cond2
-            if conf.style_time_mode == TimeMode.time_style_separate:
-                assert conf.vectorizer_type == VectorizerType.identity
-                self.time_embed = TimeTwoStyleSeperateEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                )
-            else:
-                raise NotImplementedError()
+        # having only time, cond
+        if conf.style_time_mode == TimeMode.time_style_separate:
+            self.time_embed = TimeStyleSeperateEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                out_channels=conf.embed_channels,
+                num_layer=conf.style_layer,
+                lr_mul=conf.style_lr_mul,
+                vectorizer_type=conf.vectorizer_type,
+            )
+        elif conf.style_time_mode == TimeMode.time_style_time_separate:
+            self.time_embed = TimeStyleTimeEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                num_layer=conf.style_layer,
+            )
+        elif conf.style_time_mode == TimeMode.time_style_time_residual_separate:
+            self.time_embed = TimeStyleTimeEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                num_layer=conf.style_layer,
+            )
+        elif conf.style_time_mode == TimeMode.time_and_style:
+            self.time_embed = TimeAndStyleEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                out_channels=conf.embed_channels,
+                num_layer=conf.style_layer,
+                lr_mul=conf.style_lr_mul,
+                vectorizer_type=conf.vectorizer_type,
+            )
+        elif conf.style_time_mode == TimeMode.time_varying_style:
+            self.time_embed = TimeVaryingStyleEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                out_channels=conf.embed_channels,
+                num_big_layer=conf.time_style_layer,
+                num_layer=conf.style_layer,
+                lr_mul=conf.style_lr_mul,
+                vectorizer_type=conf.vectorizer_type,
+            )
+        elif conf.style_time_mode == TimeMode.time_cond_is_style:
+            self.time_embed = TimeCondIsStyleEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                out_channels=conf.embed_channels,
+                num_layer=conf.style_layer,
+                lr_mul=conf.style_lr_mul,
+                vectorizer_type=conf.vectorizer_type,
+            )
+        elif conf.style_time_mode == TimeMode.time_cond_is_style_concat:
+            self.time_embed = TimeCondIsStyleConcatEmbed(
+                time_channels=conf.model_channels,
+                time_out_channels=conf.embed_channels,
+                cond_channels=conf.enc_out_channels,
+                out_channels=conf.embed_channels,
+                num_layer=conf.style_layer,
+                lr_mul=conf.style_lr_mul,
+                vectorizer_type=conf.vectorizer_type,
+            )
         else:
-            # having only time, cond
-            if conf.style_time_mode == TimeMode.time_style_separate:
-                self.time_embed = TimeStyleSeperateEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    out_channels=conf.embed_channels,
-                    num_layer=conf.style_layer,
-                    lr_mul=conf.style_lr_mul,
-                    vectorizer_type=conf.vectorizer_type,
-                )
-            elif conf.style_time_mode == TimeMode.time_style_time_separate:
-                self.time_embed = TimeStyleTimeEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    num_layer=conf.style_layer,
-                )
-            elif conf.style_time_mode == TimeMode.time_style_time_residual_separate:
-                self.time_embed = TimeStyleTimeEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    num_layer=conf.style_layer,
-                )
-            elif conf.style_time_mode == TimeMode.time_and_style:
-                self.time_embed = TimeAndStyleEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    out_channels=conf.embed_channels,
-                    num_layer=conf.style_layer,
-                    lr_mul=conf.style_lr_mul,
-                    vectorizer_type=conf.vectorizer_type,
-                )
-            elif conf.style_time_mode == TimeMode.time_varying_style:
-                self.time_embed = TimeVaryingStyleEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    out_channels=conf.embed_channels,
-                    num_big_layer=conf.time_style_layer,
-                    num_layer=conf.style_layer,
-                    lr_mul=conf.style_lr_mul,
-                    vectorizer_type=conf.vectorizer_type,
-                )
-            elif conf.style_time_mode == TimeMode.time_cond_is_style:
-                self.time_embed = TimeCondIsStyleEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    out_channels=conf.embed_channels,
-                    num_layer=conf.style_layer,
-                    lr_mul=conf.style_lr_mul,
-                    vectorizer_type=conf.vectorizer_type,
-                )
-            elif conf.style_time_mode == TimeMode.time_cond_is_style_concat:
-                self.time_embed = TimeCondIsStyleConcatEmbed(
-                    time_channels=conf.model_channels,
-                    time_out_channels=conf.embed_channels,
-                    cond_channels=conf.enc_out_channels,
-                    out_channels=conf.embed_channels,
-                    num_layer=conf.style_layer,
-                    lr_mul=conf.style_lr_mul,
-                    vectorizer_type=conf.vectorizer_type,
-                )
-            else:
-                raise NotImplementedError()
+            raise NotImplementedError()
 
         if not conf.use_external_encoder:
             self.encoder = BeatGANsEncoderConfig(
@@ -405,17 +394,8 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
 
     def encode(self, x):
         assert not self.conf.use_external_encoder
-        if self.conf.resnet_three_cond:
-            tmp = self.encoder.forward(x)
-            cond = tmp[:, :self.conf.resnet_cond_channels]
-            cond2 = tmp[:, self.conf.resnet_cond_channels:]
-            return {
-                'cond': cond,
-                'cond2': cond2,
-            }
-        else:
-            cond = self.encoder.forward(x)
-            return {'cond': cond, 'cond2': None}
+        cond = self.encoder.forward(x)
+        return {'cond': cond, 'cond2': None}
 
     @property
     def stylespace_sizes(self):
@@ -513,19 +493,11 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             _t_cond_emb = None
 
         if self.conf.resnet_two_cond:
-            if self.conf.resnet_three_cond:
-                res = self.time_embed.forward(
-                    time_emb=_t_emb,
-                    cond=cond,
-                    time_cond_emb=_t_cond_emb,
-                    cond2=cond2,
-                )
-            else:
-                res = self.time_embed.forward(
-                    time_emb=_t_emb,
-                    cond=cond,
-                    time_cond_emb=_t_cond_emb,
-                )
+            res = self.time_embed.forward(
+                time_emb=_t_emb,
+                cond=cond,
+                time_cond_emb=_t_cond_emb,
+            )
         else:
             raise NotImplementedError()
 
@@ -535,8 +507,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             # two cond: first = time emb, second = cond_emb
             emb = res.time_emb
             cond_emb = res.emb
-            if self.conf.resnet_three_cond:
-                cond_emb2 = res.style2
         else:
             # one cond = combined of both time and cond
             emb = res.emb
@@ -631,7 +601,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             hs = [[] for _ in range(len(self.conf.channel_mult))]
 
         if self.conf.has_init:
-            assert not self.conf.resnet_three_cond
             n = len(h) if h is not None else len(x_start)
             # (n, c, 4, 4)
             init = self.initial.repeat(n, 1, 1, 1)

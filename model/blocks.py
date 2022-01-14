@@ -18,7 +18,6 @@ from .styleconv import EqualizedConv2DMod, StyleConvSequential
 
 class ScaleAt(Enum):
     after_norm = 'afternorm'
-    before_conv = 'beforeconv'
 
 
 class RunningNormalizer(nn.Module):
@@ -133,17 +132,10 @@ class ResBlockConfig(BaseConfig):
     use_checkpoint: bool = False
     up: bool = False
     down: bool = False
-    # how to condition the feature maps:
-    # - add
-    # - mult + shift
-    condition_type: ConditionType = ConditionType.scale_shift_norm
     # the shift should start from 1
     condition_scale_bias: float = 1
     # whether to condition with both time & encoder's output
     two_cond: bool = False
-    # this is a test whether separating the encoder's output into many latents would help learn disentagled representations
-    # in this case, one time + two encoder's output = 3 total
-    three_cond: bool = False
     # number of encoders' output channels
     cond_emb_channels: int = None
     cond2_emb_channels: int = None
@@ -165,14 +157,6 @@ class ResBlockConfig(BaseConfig):
     # whether to init the convolution with zero weights
     # this is default from BeatGANs and seems to help learning
     use_zero_module: bool = True
-    # where to scale & shift the feature maps
-    # default is after normalization, but before the activation
-    # it's also possible to do after activation
-    # suggestion: after_norm, there is no difference
-    scale_at: ScaleAt = ScaleAt.after_norm
-    # only apply gradient chcekpoint to the scale & shift calculations
-    # this is very cheap but reduces memory footprint by as much as 20% (for large models)
-    use_checkpoint_gnscalesilu: bool = False
 
     def __post_init__(self):
         self.out_channels = self.out_channels or self.channels
@@ -207,15 +191,10 @@ class ResBlock(TimestepBlock):
         #############################
         assert conf.lateral_channels is None
         layers = []
-        if self.conf.use_checkpoint_gnscalesilu:
-            # more memory efficient, this could be a lot (20%) for large models
-            assert self.conf.condition_type == ConditionType.scale_shift_norm
-            layers.append(CheckpointGNShiftScaleSiLU(32, conf.channels))
-        else:
-            layers += [
-                normalization(conf.channels),
-                nn.SiLU(),
-            ]
+        layers += [
+            normalization(conf.channels),
+            nn.SiLU(),
+        ]
         layers.append(
             conv_nd(conf.dims, conf.channels, conf.out_channels, 3, padding=1))
         self.in_layers = nn.Sequential(*layers)
@@ -263,16 +242,6 @@ class ResBlock(TimestepBlock):
                     ),
                 )
 
-            if conf.three_cond:
-                self.cond2_emb_inlayers = nn.Sequential(
-                    nn.SiLU(),
-                    linear(
-                        conf.cond2_emb_channels,
-                        2 * conf.channels
-                        if conf.cond_emb_2xwidth else conf.channels,
-                    ),
-                )
-
         #############################
         # OUT LAYERS CONDITIONS
         #############################
@@ -296,17 +265,6 @@ class ResBlock(TimestepBlock):
                         if conf.cond_emb_2xwidth else conf.out_channels,
                     ),
                 )
-
-            if conf.three_cond:
-                self.cond2_emb_layers = nn.Sequential(
-                    nn.SiLU(),
-                    linear(
-                        conf.cond2_emb_channels,
-                        2 * conf.out_channels
-                        if conf.cond_emb_2xwidth else conf.out_channels,
-                    ),
-                )
-
             #############################
             # OUT LAYERS (ignored when there is no condition)
             #############################
@@ -328,17 +286,9 @@ class ResBlock(TimestepBlock):
             # - dropout
             # - conv
             layers = []
-            if self.conf.use_checkpoint_gnscalesilu:
-                # more memory efficient, this could be a lot (20%) for large models
-                assert self.conf.condition_type == ConditionType.scale_shift_norm
-                layers.append(
-                    CheckpointGNShiftScaleSiLU(32, conf.out_channels))
-            else:
-                layers += [
-                    normalization(conf.out_channels),
-                    nn.SiLU(),
-                ]
             layers += [
+                normalization(conf.out_channels),
+                nn.SiLU(),
                 nn.Dropout(p=conf.dropout),
                 conv,
             ]
@@ -389,8 +339,6 @@ class ResBlock(TimestepBlock):
         return torch_checkpoint(
             self._forward, (x, emb, cond, lateral, cond2, stylespace_cond),
             self.conf.use_checkpoint)
-        # return checkpoint(self._forward, (x, emb), self.parameters(),
-        #                   self.use_checkpoint)
 
     def _forward(
         self,
@@ -443,12 +391,7 @@ class ResBlock(TimestepBlock):
             else:
                 cond_in = None
 
-            if self.conf.three_cond:
-                cond2_in = self.cond2_emb_inlayers(cond2).type(x.dtype)
-                while len(cond2_in.shape) < len(x.shape):
-                    cond2_in = cond2_in[..., None]
-            else:
-                cond2_in = None
+            cond2_in = None
 
             h = apply_conditions(
                 h=x,
@@ -458,11 +401,7 @@ class ResBlock(TimestepBlock):
                 layers=self.in_layers,
                 time_first=self.conf.time_first,
                 scale_bias=self.conf.condition_scale_bias,
-                condition_type=self.conf.condition_type,
-                scale_at=self.conf.scale_at,
                 in_channels=self.conf.channels,
-                use_checkpoint_gnscalesilu=self.conf.
-                use_checkpoint_gnscalesilu,
                 use_after_norm=False,
                 after_norm=None,
                 up_down_layer=self.h_upd,
@@ -506,12 +445,7 @@ class ResBlock(TimestepBlock):
             else:
                 cond_out = None
 
-            if self.conf.three_cond:
-                cond2_out = self.cond2_emb_layers(cond2).type(h.dtype)
-                while len(cond2_out.shape) < len(h.shape):
-                    cond2_out = cond2_out[..., None]
-            else:
-                cond2_out = None
+            cond2_out = None
 
             # this is the new refactored code
             h = apply_conditions(
@@ -522,11 +456,7 @@ class ResBlock(TimestepBlock):
                 layers=self.out_layers,
                 time_first=self.conf.time_first,
                 scale_bias=self.conf.condition_scale_bias,
-                condition_type=self.conf.condition_type,
-                scale_at=self.conf.scale_at,
                 in_channels=self.conf.out_channels,
-                use_checkpoint_gnscalesilu=self.conf.
-                use_checkpoint_gnscalesilu,
                 use_after_norm=self.conf.use_after_norm,
                 after_norm=self.after_norm,
                 up_down_layer=None,
@@ -543,10 +473,7 @@ def apply_conditions(
     layers: nn.Sequential = None,
     time_first: bool = True,
     scale_bias: float = 1,
-    condition_type: ConditionType = ConditionType.scale_shift_norm,
-    scale_at: ScaleAt = ScaleAt.after_norm,
     in_channels: int = 512,
-    use_checkpoint_gnscalesilu: bool = False,
     use_after_norm: bool = False,
     after_norm: nn.Module = None,
     up_down_layer: nn.Module = None,
@@ -560,7 +487,6 @@ def apply_conditions(
         cond2: second encoder's conditional (ready to scale + shift)
     """
     two_cond = emb is not None and cond is not None
-    three_cond = two_cond and cond2 is not None
 
     if emb is not None:
         # adjusting shapes
@@ -579,11 +505,6 @@ def apply_conditions(
     else:
         # "cond" is not used with single cond mode
         scale_shifts = [emb]
-
-    if three_cond:
-        while len(cond2.shape) < len(h.shape):
-            cond2 = cond2[..., None]
-        scale_shifts.append(cond2)
 
     # support scale, shift or shift only
     for i, each in enumerate(scale_shifts):
@@ -606,15 +527,8 @@ def apply_conditions(
         # a list
         biases = scale_bias
 
-    # split layers at the point of conditon usually after norm
-    if scale_at == ScaleAt.after_norm:
-        # default, the scale & shift are applied after the group norm but BEFORE SiLU
-        pre_layers, post_layers = layers[0], layers[1:]
-    elif scale_at == ScaleAt.before_conv:
-        n_layers = len(layers)
-        pre_layers, post_layers = layers[:n_layers - 1], layers[n_layers - 1:]
-    else:
-        raise NotImplementedError()
+    # default, the scale & shift are applied after the group norm but BEFORE SiLU
+    pre_layers, post_layers = layers[0], layers[1:]
 
     # spilt the post layer to be able to scale up or down before conv
     # post layers will contain only the conv
@@ -623,59 +537,16 @@ def apply_conditions(
     # if not used the styleconv, it will remain None
     style_cond = None
 
-    if condition_type == ConditionType.scale_shift_norm:
-        # default conditioning method!
-
-        if use_checkpoint_gnscalesilu:
-            assert not three_cond
-            assert after_norm is None, 'does not support after norm'
-            scale1, shift1 = scale_shifts[0]
-            if len(scale_shifts) > 1:
-                scale2, shift2 = scale_shifts[1]
-            else:
-                scale2, shift2 = None, None
-            h = pre_layers(h, scale1, shift1, scale2, shift2)
-        else:
-            h = pre_layers(h)
-
-        if not use_checkpoint_gnscalesilu:
-            # ignore this if use the checkpoint version
-            # scale and shift for each condition
-            for i, (scale, shift) in enumerate(scale_shifts):
-                # if scale is None, it indicates that the condition is not provided
-                if scale is not None:
-                    h = h * (biases[i] + scale)
-                    if shift is not None:
-                        h = h + shift
-        h = mid_layers(h)
-    elif condition_type == ConditionType.scale_shift_hybrid:
-        # time condition adds
-        # encoder's condition scales
-        assert not three_cond
-        shift, _ = scale_shifts[0]
-        # if shift is None, the condition is not provided, ignore
-        if shift is not None:
-            h = h + shift
-        h = pre_layers(h)
-        # only works with two conditions
-        # scale and shift for each condition
-        # scale (C, 1, 1), shift (C, 1, 1) <=== z (512,) <== encoder
-        scale, shift = scale_shifts[1]
-        # if scale is None, the condition is not provided
+    # default conditioning method!
+    h = pre_layers(h)
+    # scale and shift for each condition
+    for i, (scale, shift) in enumerate(scale_shifts):
+        # if scale is None, it indicates that the condition is not provided
         if scale is not None:
-            h = h * (biases[1] + scale)
+            h = h * (biases[i] + scale)
             if shift is not None:
                 h = h + shift
-        h = mid_layers(h)
-    elif condition_type == ConditionType.add:
-        for (shift, _) in scale_shifts:
-            # if shift is None, the condition is not provided
-            if shift is not None:
-                h = h + shift
-        h = pre_layers(h)
-        h = mid_layers(h)
-    else:
-        raise NotImplementedError()
+    h = mid_layers(h)
 
     # upscale or downscale if any just before the last conv
     if up_down_layer is not None:
@@ -796,8 +667,6 @@ class AttentionBlock(nn.Module):
 
     def forward(self, x):
         return torch_checkpoint(self._forward, (x, ), self.use_checkpoint)
-        # return checkpoint(self._forward, (x, ), self.parameters(),
-        #                   self.use_checkpoint)
 
     def _forward(self, x):
         b, c, *spatial = x.shape

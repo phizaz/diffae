@@ -136,7 +136,6 @@ class TrainConfig(BaseConfig):
     net_beatgans_style_time_mode: TimeMode = TimeMode.time_and_style
     net_beatgans_time_style_layer: int = 2
     net_beatgans_resnet_use_inlayers_cond: bool = False
-    net_beatgans_resnet_condition_type: ConditionType = ConditionType.add
     net_beatgans_resnet_condition_scale_bias: float = 1
     net_beatgans_resnet_two_cond: bool = False
     net_beatgans_resnet_time_first: bool = False
@@ -147,9 +146,7 @@ class TrainConfig(BaseConfig):
     net_beatgans_resnet_use_after_norm: bool = False
     net_beatgans_resnet_use_zero_module: bool = True
     net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.after_norm
-    net_beatgans_resnet_use_checkpoint_gnscalesilu: bool = False
     net_beatgans_resnet_cond_channels: int = None
-    net_beatgans_three_cond: bool = False
     net_beatgans_use_mid_attn: bool = True
     mmd_alphas: Tuple[float] = (0.5, )
     mmd_coef: float = 0.1
@@ -179,7 +176,6 @@ class TrainConfig(BaseConfig):
     net_latent_cond_both: bool = True
     net_latent_condition_2x: bool = False
     net_latent_condition_bias: float = 0
-    net_latent_condition_type: ConditionType = ConditionType.scale_shift_norm
     net_latent_dropout: float = 0
     net_latent_layers: int = None
     net_latent_net_last_act: Activation = Activation.none
@@ -236,12 +232,6 @@ class TrainConfig(BaseConfig):
     def __post_init__(self):
         self.batch_size_eval = self.batch_size_eval or self.batch_size
         self.data_val_name = self.data_val_name or self.data_name
-        if self.net_beatgans_resnet_condition_type == ConditionType.scale_shift_hybrid:
-            assert self.net_beatgans_resnet_two_cond, 'hybrid needs to  two cond'
-            if self.net_beatgans_resnet_time_first:
-                self.net_beatgans_resnet_time_emb_2xwidth = False
-            else:
-                self.net_beatgans_resnet_cond_emb_2xwidth = False
 
     @property
     def name(self):
@@ -681,7 +671,6 @@ class TrainConfig(BaseConfig):
                 use_new_attention_order=False,
                 resnet_use_inlayers_condition=self.
                 net_beatgans_resnet_use_inlayers_cond,
-                resnet_condition_type=self.net_beatgans_resnet_condition_type,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
@@ -695,8 +684,6 @@ class TrainConfig(BaseConfig):
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 resnet_scale_at=self.net_beatgans_resnet_scale_at,
-                resnet_use_checkpoint_gnscalesilu=self.
-                net_beatgans_resnet_use_checkpoint_gnscalesilu,
                 use_mid_attn=self.net_beatgans_use_mid_attn,
             )
         elif self.model_name in [
@@ -721,20 +708,6 @@ class TrainConfig(BaseConfig):
 
             if self.net_latent_net_type == LatentNetType.none:
                 latent_net_conf = None
-            elif self.net_latent_net_type == LatentNetType.vanilla:
-                latent_net_conf = MLPNetConfig(
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    num_layers=self.net_latent_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    activation=self.net_latent_activation,
-                    use_norm=self.net_latent_use_norm,
-                    condition_type=self.net_latent_condition_type,
-                    condition_2x=self.net_latent_condition_2x,
-                    condition_bias=self.net_latent_condition_bias,
-                    dropout=self.net_latent_dropout,
-                    last_act=self.net_latent_net_last_act,
-                )
             elif self.net_latent_net_type == LatentNetType.skip:
                 latent_net_conf = MLPSkipNetConfig(
                     num_channels=self.style_ch,
@@ -744,7 +717,6 @@ class TrainConfig(BaseConfig):
                     num_time_emb_channels=self.net_latent_time_emb_channels,
                     activation=self.net_latent_activation,
                     use_norm=self.net_latent_use_norm,
-                    condition_type=self.net_latent_condition_type,
                     condition_2x=self.net_latent_condition_2x,
                     condition_bias=self.net_latent_condition_bias,
                     dropout=self.net_latent_dropout,
@@ -753,104 +725,6 @@ class TrainConfig(BaseConfig):
                     time_layer_init=self.net_latent_time_layer_init,
                     residual=self.net_latent_residual,
                     time_last_act=self.net_latent_time_last_act,
-                )
-            elif self.net_latent_net_type == LatentNetType.resnet:
-                latent_net_conf = MLPResNetConfig(
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    num_blocks=self.net_latent_blocks,
-                    num_layers_per_block=self.net_latent_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    activation=self.net_latent_activation,
-                    use_norm=self.net_latent_use_norm,
-                    condition_type=self.net_latent_condition_type,
-                    condition_2x=self.net_latent_condition_2x,
-                )
-            elif self.net_latent_net_type == LatentNetType.concat:
-                latent_net_conf = MLPConcatConfig(
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    num_layers=self.net_latent_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    activation=self.net_latent_activation,
-                    use_norm=self.net_latent_use_norm,
-                    cond_type=self.net_latent_condition_type,
-                )
-            elif self.net_latent_net_type == LatentNetType.conv:
-                latent_net_conf = LatentConvConfig(
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    num_layers=self.net_latent_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                )
-            elif self.net_latent_net_type == LatentNetType.projected_conv:
-                latent_net_conf = ProjectedConvLatentConfig(
-                    project_size=self.net_latent_project_size,
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    num_layers=self.net_latent_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    unpool=self.net_latent_unpool,
-                )
-            elif self.net_latent_net_type == LatentNetType.projected_unet:
-                latent_net_conf = ProjectedUnetLatentConfig(
-                    project_size=self.net_latent_project_size,
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    attn_resolutions=self.net_latent_attn_resolutions,
-                    channel_mult=self.net_latent_channel_mult,
-                    num_res_blocks=self.net_latent_num_res_blocks,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    dropout=self.net_latent_dropout,
-                    use_mid_attn=self.net_latent_use_mid_attn,
-                )
-            elif self.net_latent_net_type == LatentNetType.projected_inv_unet:
-                latent_net_conf = ProjectedInvertUnetLatentConfig(
-                    project_size=self.net_latent_project_size,
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    attn_resolutions=self.net_latent_attn_resolutions,
-                    channel_mult=self.net_latent_channel_mult,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    dropout=self.net_latent_dropout,
-                    num_res_blocks=self.net_latent_num_res_blocks,
-                )
-            elif self.net_latent_net_type == LatentNetType.projected_half_unet:
-                latent_net_conf = ProjectedHalfUnetLatentConfig(
-                    project_size=self.net_latent_project_size,
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_latent_num_hid_channels,
-                    attn_resolutions=self.net_latent_attn_resolutions,
-                    channel_mult=self.net_latent_channel_mult,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    dropout=self.net_latent_dropout,
-                    num_res_blocks=self.net_latent_num_res_blocks,
-                )
-            elif self.net_latent_net_type == LatentNetType.mlpmixer:
-                latent_net_conf = MLPMixerConfig(
-                    num_channels=self.style_ch,
-                    num_patches=self.net_latent_project_size,
-                    num_layers=self.net_latent_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    expansion_factor=4,
-                    dropout=self.net_latent_dropout,
-                    num_time_layers=self.net_latent_num_time_layers,
-                    pooling=self.net_latent_pooling,
-                    time_is_int=True,
-                    cond_both=self.net_latent_cond_both,
-                )
-            elif self.net_latent_net_type == LatentNetType.prenormskip:
-                latent_net_conf = MLPPreNormSkipNetConfig(
-                    num_channels=self.style_ch,
-                    num_layers=self.net_latent_layers,
-                    skip_layers=self.net_latent_skip_layers,
-                    num_time_emb_channels=self.net_latent_time_emb_channels,
-                    expansion_factor=4,
-                    num_time_layers=self.net_latent_num_time_layers,
-                    time_is_int=True,
-                    time_layer_init=self.net_latent_time_layer_init,
-                    layer_init=True,
-                    dropout=self.net_latent_dropout,
                 )
             else:
                 raise NotImplementedError()
@@ -906,7 +780,6 @@ class TrainConfig(BaseConfig):
                 enc_tanh=self.net_enc_tanh,
                 resnet_use_inlayers_condition=self.
                 net_beatgans_resnet_use_inlayers_cond,
-                resnet_condition_type=self.net_beatgans_resnet_condition_type,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
@@ -921,17 +794,13 @@ class TrainConfig(BaseConfig):
                 resnet_use_after_norm=self.net_beatgans_resnet_use_after_norm,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
-                resnet_scale_at=self.net_beatgans_resnet_scale_at,
                 cond_at=self.net_autoenc_cond_at,
                 time_at=self.net_autoenc_time_at,
                 has_init=self.net_autoenc_has_init,
                 merger_type=self.net_autoenc_merger_type,
                 latent_net_conf=latent_net_conf,
                 noise_net_conf=noise_net_conf,
-                resnet_use_checkpoint_gnscalesilu=self.
-                net_beatgans_resnet_use_checkpoint_gnscalesilu,
                 resnet_cond_channels=self.net_beatgans_resnet_cond_channels,
-                resnet_three_cond=self.net_beatgans_three_cond,
                 use_mid_attn=self.net_beatgans_use_mid_attn,
             )
         elif self.model_name == ModelName.default_autoenc:

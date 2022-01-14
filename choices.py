@@ -339,15 +339,6 @@ class OptimizerType(Enum):
     adamw = 'adamw'
 
 
-class ConditionType(Enum):
-    no = 'no'
-    add = 'add'
-    scale_shift_norm = 'normmod'
-    scale_shift_hybrid = 'normhybrid'
-    # this option only available on MLPs
-    norm_scale_shift = 'normmodafter'
-
-
 class Activation(Enum):
     none = 'none'
     relu = 'relu'

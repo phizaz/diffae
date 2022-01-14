@@ -11,7 +11,7 @@ from choices import *
 from config_base import BaseConfig
 from .blocks import *
 
-from .nn import (CheckpointGNShiftScaleSiLU, GatedConv, GateType, avg_pool_nd,
+from .nn import (GateType, avg_pool_nd,
                  checkpoint, conv_nd, linear, normalization,
                  timestep_embedding, torch_checkpoint, zero_module)
 
@@ -71,10 +71,8 @@ class BeatGANsUNetConfig(BaseConfig):
     # default: False (as in BeatGANs)
     # hypothesis: enabling more conditioning improves performance
     resnet_use_inlayers_condition: bool = False
-    resnet_condition_type: ConditionType = ConditionType.add
     resnet_condition_scale_bias: Union[float, Tuple[float]] = 1
     resnet_two_cond: bool = False
-    resnet_three_cond: bool = False
     resnet_cond_channels: int = None
     resnet_time_first: bool = False
     # whether to scale and shift, or just scale only
@@ -91,9 +89,6 @@ class BeatGANsUNetConfig(BaseConfig):
     # init the decoding conv layers with zero weights, this speeds up training
     # default: True (BeattGANs)
     resnet_use_zero_module: bool = True
-    resnet_scale_at: ScaleAt = ScaleAt.after_norm
-    # checkpoint the scale & shift operations (this is cheap). This can save as much as 20% of the memory on large models
-    resnet_use_checkpoint_gnscalesilu: bool = False
     # gradient checkpoint the attention operation
     attn_checkpoint: bool = False
 
@@ -115,37 +110,26 @@ class BeatGANsUNetConfig(BaseConfig):
             name += '-nomidattn'
         name += f'-dropout{self.dropout}'
 
-        name += f'-{self.resnet_condition_type.value}'
-        if self.resnet_condition_type in [
-                ConditionType.scale_shift_norm,
-                ConditionType.scale_shift_hybrid
-        ]:
-            if isinstance(self.resnet_condition_scale_bias, Number):
-                name += f'-bias{self.resnet_condition_scale_bias}'
-            else:
-                biases = self.resnet_condition_scale_bias
-                name += f'-bias({biases[0]},{biases[1]})'
+        name += f'-normmod'
+        if isinstance(self.resnet_condition_scale_bias, Number):
+            name += f'-bias{self.resnet_condition_scale_bias}'
+        else:
+            biases = self.resnet_condition_scale_bias
+            name += f'-bias({biases[0]},{biases[1]})'
         if self.resnet_use_inlayers_condition:
             name += '-incond'
         if self.resnet_two_cond:
             name += '-twocond'
             if self.resnet_time_first:
                 name += '-timefirst'
-            if self.resnet_three_cond:
-                name += '-threecond'
-                name += f'-cond{self.resnet_cond_channels}'
         if self.resnet_time_emb_2xwidth:
             name += '-time2x'
         if self.resnet_cond_emb_2xwidth:
             name += '-cond2x'
-        if self.resnet_scale_at != ScaleAt.after_norm:
-            name += f'-scaleat{self.resnet_scale_at.value}'
         if self.resnet_use_after_norm:
             name += '-afternorm'
         if not self.resnet_use_zero_module:
             name += '-nonzero'
-        if self.resnet_use_checkpoint_gnscalesilu:
-            name += '-ckptgnnormsilu'
 
         if self.resblock_updown:
             name += '-residue'
@@ -190,10 +174,8 @@ class BeatGANsUNetModel(nn.Module):
         kwargs = dict(
             use_condition=True,
             use_inlayers_condition=conf.resnet_use_inlayers_condition,
-            condition_type=conf.resnet_condition_type,
             condition_scale_bias=conf.resnet_condition_scale_bias,
             two_cond=conf.resnet_two_cond,
-            three_cond=conf.resnet_three_cond,
             time_first=conf.resnet_time_first,
             time_emb_2xwidth=conf.resnet_time_emb_2xwidth,
             cond_emb_2xwidth=conf.resnet_cond_emb_2xwidth,
@@ -201,15 +183,9 @@ class BeatGANsUNetModel(nn.Module):
             gate_init=conf.resnet_gate_init,
             use_after_norm=conf.resnet_use_after_norm,
             use_zero_module=conf.resnet_use_zero_module,
-            scale_at=conf.resnet_scale_at,
-            use_checkpoint_gnscalesilu=conf.resnet_use_checkpoint_gnscalesilu,
             # style channels for the resnet block
             cond_emb_channels=conf.resnet_cond_channels,
         )
-
-        if conf.resnet_three_cond:
-            kwargs[
-                'cond2_emb_channels'] = conf.embed_channels - conf.resnet_cond_channels
 
         self._feature_size = ch
 
