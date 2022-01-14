@@ -131,8 +131,6 @@ class ResBlockConfig(BaseConfig):
     two_cond: bool = False
     # number of encoders' output channels
     cond_emb_channels: int = None
-    # whether to use both scale & shift for time condition
-    time_emb_2xwidth: bool = True
     # suggest: False
     has_lateral: bool = False
     lateral_channels: int = None
@@ -196,11 +194,7 @@ class ResBlock(TimestepBlock):
             # condition layers for the out_layers
             self.emb_layers = nn.Sequential(
                 nn.SiLU(),
-                linear(
-                    conf.emb_channels,
-                    2 * conf.out_channels
-                    if conf.time_emb_2xwidth else conf.out_channels,
-                ),
+                linear(conf.emb_channels, 2 * conf.out_channels),
             )
 
             if conf.two_cond:
