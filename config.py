@@ -12,7 +12,6 @@ from dataset import *
 from diffusion import *
 from diffusion.base import GenerativeType, LossType, ModelMeanType, ModelVarType, get_named_beta_schedule
 from model import *
-from model.model_our import *
 from choices import *
 from multiprocessing import get_context
 import os
@@ -263,9 +262,6 @@ class TrainConfig(BaseConfig):
                         tmp += f'-weight{self.beatgans_xstart_weight_type.value}'
                 if self.beatgans_model_var_type != ModelVarType.fixed_large:
                     tmp += f'-var{self.beatgans_model_var_type.value}'
-                if self.model_type == ModelType.mmdddpm:
-                    tmp += f'-mmd{self.mmd_coef}alphas(' + ','.join(
-                        str(x) for x in self.mmd_alphas) + ')'
 
         if self.train_mode.use_latent_net():
             # latent diffusion configs
@@ -543,33 +539,6 @@ class TrainConfig(BaseConfig):
         )
 
     def make_model_conf(self):
-        if self.net_enc_name is None:
-            style_enc_conf = None
-        elif self.net_enc_name == EncoderName.v1:
-            style_enc_conf = StyleEncoderConfig(
-                img_size=self.img_size,
-                style_ch=self.style_ch,
-                ch=self.net_ch,
-                ch_mult=self.net_ch_mult,
-                attn=self.net_enc_attn,
-                num_res_blocks=self.net_enc_num_res_blocks,
-                dropout=self.dropout)
-        elif self.net_enc_name == EncoderName.v2:
-            style_enc_conf = StyleEncoder2Config(
-                img_size=self.img_size,
-                style_ch=self.style_ch,
-                ch=self.net_ch,
-                ch_mult=self.net_ch_mult,
-                attn=self.net_enc_attn,
-                num_res_blocks=self.net_enc_num_res_blocks,
-                dropout=self.dropout,
-                tail_depth=self.net_enc_tail_depth,
-                pooling=self.net_enc_pooling,
-                k=self.net_enc_k,
-            )
-        else:
-            raise NotImplementedError()
-
         if self.model_name == ModelName.beatgans_ddpm:
             self.model_type = ModelType.ddpm
             self.model_conf = BeatGANsUNetConfig(
@@ -634,8 +603,6 @@ class TrainConfig(BaseConfig):
                 raise NotImplementedError()
 
             self.model_conf = cls(
-                is_stochastic=(self.model_type == ModelType.vaeddpm
-                               or self.net_autoenc_stochastic),
                 attention_resolutions=self.net_attn,
                 channel_mult=self.net_ch_mult,
                 conv_resample=True,
@@ -675,52 +642,6 @@ class TrainConfig(BaseConfig):
                 latent_net_conf=latent_net_conf,
                 resnet_cond_channels=self.net_beatgans_resnet_cond_channels,
                 use_mid_attn=self.net_beatgans_use_mid_attn,
-            )
-        elif self.model_name == ModelName.default_autoenc:
-            self.model_type = ModelType.autoencoder
-            self.model_conf = StyleUNetConfig(
-                img_size=self.img_size,
-                T=self.T,
-                ch=self.net_ch,
-                ch_mult=self.net_ch_mult,
-                attn=self.net_attn,
-                num_res_blocks=self.net_num_res_blocks,
-                dropout=self.dropout,
-                style_ch=self.style_ch,
-                mid_attn=self.autoenc_mid_attn,
-                style_enc_conf=style_enc_conf,
-            )
-        elif self.model_name == ModelName.default_vaeddpm:
-            self.model_type = ModelType.vaeddpm
-            self.model_conf = VAEStyleUNetConfig(
-                img_size=self.img_size,
-                T=self.T,
-                ch=self.net_ch,
-                ch_mult=self.net_ch_mult,
-                attn=self.net_attn,
-                num_res_blocks=self.net_num_res_blocks,
-                dropout=self.dropout,
-                style_ch=self.style_ch,
-            )
-        elif self.model_name == ModelName.beatgans_encoder:
-            self.model_type = ModelType.encoder
-            self.model_conf = BeatGANsEncoderConfig(
-                image_size=self.img_size,
-                in_channels=3,
-                model_channels=self.net_ch,
-                out_hid_channels=None,
-                out_channels=self.net_enc_num_cls,
-                num_res_blocks=self.net_enc_num_res_blocks,
-                attention_resolutions=self.net_enc_attn,
-                dropout=self.dropout,
-                channel_mult=self.net_enc_channel_mult,
-                num_head_channels=1,
-                use_time_condition=self.net_enc_use_time,
-                conv_resample=True,
-                dims=2,
-                resblock_updown=True,
-                pool=self.net_enc_pool,
-                use_checkpoint=self.net_enc_grad_checkpoint,
             )
         else:
             raise NotImplementedError(self.model_name)

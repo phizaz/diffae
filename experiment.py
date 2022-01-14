@@ -42,9 +42,6 @@ class LitModel(pl.LightningModule):
         self.ema_model = copy.deepcopy(self.model)
         self.ema_model.requires_grad_(False)
 
-        if conf.model_type == ModelType.external_encoder:
-            raise NotImplementedError()
-
         model_size = 0
         for param in self.model.parameters():
             model_size += param.data.nelement()

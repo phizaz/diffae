@@ -117,33 +117,14 @@ class ModelType(Enum):
     ddpm = 'ddpm'
     # autoencoding ddpm cannot do unconditional generation
     autoencoder = 'autoencoder'
-    # may use CLIP as an encoder
-    external_encoder = 'extencoder'
-    # unconditional ddpm with vae's encoder
-    vaeddpm = 'vaeddpm'
-    # with mmd latent loss function
-    mmdddpm = 'mmdddpm'
-    genlatent = 'genlatent'
-    # encoder only
-    encoder = 'encoder'
 
     def has_autoenc(self):
         return self in [
             ModelType.autoencoder,
-            ModelType.external_encoder,
-            ModelType.vaeddpm,
-            ModelType.mmdddpm,
-            ModelType.genlatent,
         ]
 
     def can_sample(self):
-        return self in [
-            ModelType.ddpm, ModelType.vaeddpm, ModelType.mmdddpm,
-            ModelType.genlatent
-        ]
-
-    def has_noise_to_cond(self):
-        return self in [ModelType.mmdddpm, ModelType.genlatent]
+        return self in [ModelType.ddpm]
 
 
 class ChamferType(Enum):

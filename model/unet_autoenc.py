@@ -18,11 +18,9 @@ class VectorizerType(Enum):
     identity = 'identity'
 
 
-
 @dataclass
 class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     use_external_encoder: bool = False
-    is_stochastic: bool = False
     # number of style channels
     enc_out_channels: int = 512
     enc_attn_resolutions: Tuple[int] = None
@@ -31,7 +29,7 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     enc_num_res_block: int = 2
     enc_channel_mult: Tuple[int] = None
     enc_grad_checkpoint: bool = False
-    style_time_mode: TimeMode = None 
+    style_time_mode: TimeMode = None
     # unconditioned style layers
     style_layer: int = 8
     # film-layers conditioned on time
@@ -43,10 +41,7 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     @property
     def name(self):
         name = super().name
-        if self.is_stochastic:
-            name = name.replace('netbeatgans', 'vaebeatgans')
-        else:
-            name = name.replace('netbeatgans', 'autoencbeatgans')
+        name = name.replace('netbeatgans', 'autoencbeatgans')
 
         if not self.use_external_encoder:
             name += f'-pool{self.enc_pool}'
@@ -156,8 +151,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 in_channels=conf.in_channels,
                 model_channels=conf.model_channels,
                 out_hid_channels=conf.enc_out_channels,
-                out_channels=(conf.enc_out_channels * 2 if conf.is_stochastic
-                              else conf.enc_out_channels),
+                out_channels=conf.enc_out_channels,
                 num_res_blocks=conf.enc_num_res_block,
                 attention_resolutions=(conf.enc_attn_resolutions
                                        or conf.attention_resolutions),
@@ -367,9 +361,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
 
             # middle blocks
             if stylespace_cond is None:
-                h = self.middle_block(h,
-                                      emb=mid_time_emb,
-                                      cond=mid_cond_emb)
+                h = self.middle_block(h, emb=mid_time_emb, cond=mid_cond_emb)
             else:
                 for each in self.middle_block:
                     if isinstance(each, ResBlock):
@@ -416,16 +408,8 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         if stylespace_cond is not None:
             assert len(stylespace_cond) == 0
 
-        # h = h.type(x.dtype)
         pred = self.out(h)
-
-        if self.conf.is_stochastic:
-            return AutoencReturn(pred=pred,
-                                 cond=cond,
-                                 cond_mu=mu,
-                                 cond_logvar=logvar)
-        else:
-            return AutoencReturn(pred=pred, cond=cond)
+        return AutoencReturn(pred=pred, cond=cond)
 
 
 @dataclass
@@ -503,9 +487,7 @@ class TimeTwoStyleSeperateEmbed(nn.Module):
             time_emb = None
         else:
             time_emb = self.time_embed(time_emb)
-        return EmbedReturn(emb=cond,
-                           time_emb=time_emb,
-                           style=cond)
+        return EmbedReturn(emb=cond, time_emb=time_emb, style=cond)
 
 
 class TimeStyleSeperateEmbed(nn.Module):
