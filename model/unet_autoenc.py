@@ -5,7 +5,6 @@ from torch import Tensor
 from torch.nn.functional import silu
 
 from .latentnet import *
-from .noisenet import *
 from .unet import *
 from choices import *
 
@@ -40,7 +39,6 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     style_lr_mul: float = 0.1
     vectorizer_type: VectorizerType = VectorizerType.identity
     latent_net_conf: MLPSkipNetConfig = None
-    noise_net_conf: NoiseNetConfig = None
 
     @property
     def name(self):
@@ -69,21 +67,8 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
         name += f'/{self.style_time_mode.value}'
         name += f'-identity'
 
-        # elif self.style_time_mode == TimeMode.time_and_style:
-        #     name += f'-layer{self.style_layer}lr{self.style_lr_mul}'
-        # elif self.style_time_mode == TimeMode.time_varying_style:
-        #     name += f'-layer{self.time_style_layer}+{self.style_layer}lr{self.style_lr_mul}'
-        # elif self.style_time_mode == TimeMode.time_cond_is_style:
-        #     name += f'-layer{self.style_layer}lr{self.style_lr_mul}'
-        # elif self.style_time_mode == TimeMode.time_cond_is_style_concat:
-        #     name += f'-layer{self.style_layer}lr{self.style_lr_mul}'
-        # else:
-        #     raise NotImplementedError()
-
         if self.latent_net_conf is not None:
             name += f'-latent{self.latent_net_conf.name}'
-        if self.noise_net_conf is not None:
-            name += f'-{self.noise_net_conf.name}'
 
         return name
 
@@ -192,9 +177,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
 
         if conf.latent_net_conf is not None:
             self.latent_net = conf.latent_net_conf.make_model()
-
-        if conf.noise_net_conf is not None:
-            self.noise_net = conf.noise_net_conf.make_model()
 
     def reparameterize(self, mu: Tensor, logvar: Tensor) -> Tensor:
         """

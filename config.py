@@ -1,6 +1,5 @@
 from model.unet import ScaleAt
 from model.latentnet import *
-from model.noisenet import NoiseNetConfig, NoiseNetType
 from model.unet_autoenc import TimeMode, VectorizerType
 from diffusion.resample import UniformSampler
 from diffusion.diffusion import space_timesteps
@@ -180,13 +179,6 @@ class TrainConfig(BaseConfig):
     net_latent_use_mid_attn: bool = True
     net_latent_use_norm: bool = False
     net_latent_time_last_act: bool = False
-    net_noise_type: NoiseNetType = None
-    net_noise_num_hid_channels: int = 1024
-    net_noise_num_layers: int = 3
-    net_noise_activation: Activation = Activation.silu
-    net_noise_use_norm: bool = False
-    net_noise_dropout: float = 0
-    net_noise_last_act: Activation = Activation.none
     net_num_res_blocks: int = 2
     # number of resblocks for the UNET
     net_num_input_res_blocks: int = None
@@ -641,20 +633,6 @@ class TrainConfig(BaseConfig):
             else:
                 raise NotImplementedError()
 
-            if self.net_noise_type is not None:
-                noise_net_conf = NoiseNetConfig(
-                    type=self.net_noise_type,
-                    num_channels=self.style_ch,
-                    num_hid_channels=self.net_noise_num_hid_channels,
-                    num_layers=self.net_noise_num_layers,
-                    activation=self.net_noise_activation,
-                    use_norm=self.net_noise_use_norm,
-                    dropout=self.net_noise_dropout,
-                    last_act=self.net_noise_last_act,
-                )
-            else:
-                noise_net_conf = None
-
             self.model_conf = cls(
                 is_stochastic=(self.model_type == ModelType.vaeddpm
                                or self.net_autoenc_stochastic),
@@ -695,7 +673,6 @@ class TrainConfig(BaseConfig):
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 latent_net_conf=latent_net_conf,
-                noise_net_conf=noise_net_conf,
                 resnet_cond_channels=self.net_beatgans_resnet_cond_channels,
                 use_mid_attn=self.net_beatgans_use_mid_attn,
             )

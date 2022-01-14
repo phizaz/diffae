@@ -10,7 +10,7 @@ from config_base import BaseConfig
 from torch import nn
 
 from .fp16_util import convert_module_to_f16, convert_module_to_f32
-from .nn import (CheckpointGNShiftScaleSiLU, GatedConv, GateType, avg_pool_nd,
+from .nn import (avg_pool_nd,
                  checkpoint, conv_nd, linear, normalization,
                  timestep_embedding, torch_checkpoint, zero_module)
 

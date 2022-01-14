@@ -11,9 +11,8 @@ from choices import *
 from config_base import BaseConfig
 from .blocks import *
 
-from .nn import (GateType, avg_pool_nd,
-                 checkpoint, conv_nd, linear, normalization,
-                 timestep_embedding, torch_checkpoint, zero_module)
+from .nn import (conv_nd, linear, normalization, timestep_embedding,
+                 torch_checkpoint, zero_module)
 
 
 @dataclass
