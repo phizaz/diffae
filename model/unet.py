@@ -75,9 +75,6 @@ class BeatGANsUNetConfig(BaseConfig):
     resnet_time_emb_2xwidth: bool = True
     # default: False (scale + shift doesn't improve)
     resnet_cond_emb_2xwidth: bool = True
-    ###
-    resnet_gate_type: GateType = None
-    resnet_gate_init: float = None
     # init the decoding conv layers with zero weights, this speeds up training
     # default: True (BeattGANs)
     resnet_use_zero_module: bool = True
@@ -161,8 +158,6 @@ class BeatGANsUNetModel(nn.Module):
             time_first=conf.resnet_time_first,
             time_emb_2xwidth=conf.resnet_time_emb_2xwidth,
             cond_emb_2xwidth=conf.resnet_cond_emb_2xwidth,
-            gate_type=conf.resnet_gate_type,
-            gate_init=conf.resnet_gate_init,
             use_zero_module=conf.resnet_use_zero_module,
             # style channels for the resnet block
             cond_emb_channels=conf.resnet_cond_channels,

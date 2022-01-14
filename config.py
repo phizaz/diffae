@@ -140,8 +140,6 @@ class TrainConfig(BaseConfig):
     net_beatgans_resnet_time_first: bool = False
     net_beatgans_resnet_time_emb_2xwidth: bool = True
     net_beatgans_resnet_cond_emb_2xwidth: bool = True
-    net_beatgans_resnet_gate_type: GateType = None
-    net_beatgans_resnet_gate_init: float = 0
     net_beatgans_resnet_use_zero_module: bool = True
     net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.after_norm
     net_beatgans_resnet_cond_channels: int = None
@@ -675,8 +673,6 @@ class TrainConfig(BaseConfig):
                 net_beatgans_resnet_time_emb_2xwidth,
                 resnet_cond_emb_2xwidth=self.
                 net_beatgans_resnet_cond_emb_2xwidth,
-                resnet_gate_type=self.net_beatgans_resnet_gate_type,
-                resnet_gate_init=self.net_beatgans_resnet_gate_init,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 resnet_scale_at=self.net_beatgans_resnet_scale_at,
@@ -783,8 +779,6 @@ class TrainConfig(BaseConfig):
                 resnet_cond_emb_2xwidth=self.
                 net_beatgans_resnet_cond_emb_2xwidth,
                 vectorizer_type=self.net_enc_vectorizer_type,
-                resnet_gate_type=self.net_beatgans_resnet_gate_type,
-                resnet_gate_init=self.net_beatgans_resnet_gate_init,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 cond_at=self.net_autoenc_cond_at,

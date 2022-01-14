@@ -145,8 +145,6 @@ class ResBlockConfig(BaseConfig):
     # suggest: False
     has_lateral: bool = False
     lateral_channels: int = None
-    gate_type: GateType = None
-    gate_init: float = None
     # whether to init the convolution with zero weights
     # this is default from BeatGANs and seems to help learning
     use_zero_module: bool = True
