@@ -5,9 +5,6 @@ from torch import Tensor
 from torch.nn.functional import silu
 
 from .latentnet import *
-from .style import BeatGANsStyleVectorizer
-from .style_old import OldVectorizer, OldVectorizer2
-from .style_simple import SimpleVectorizer
 from .noisenet import *
 from .unet import *
 from choices import *
@@ -31,26 +28,6 @@ class TimeMode(Enum):
 
 class VectorizerType(Enum):
     identity = 'identity'
-    # only applying tanh
-    tanh = 'tanh'
-    # this seems to be "wrongly" implemented!
-    old = 'old'
-    # this version is corrected with activations
-    old2 = 'old2'
-    new = 'new'
-    first_layer_is_normal = 'firstnormal'
-    # not the same as F.normalize, this is the correct one for weight init.
-    pixel_norm = 'pixelnorm'
-    simple = 'simple'
-    simple_pixel_norm = 'simplepixelnorm'
-    linear = 'linear'
-    linear_pixel_norm = 'linearpixelnorm'
-
-    def has_lr(self):
-        return self in [
-            VectorizerType.old, VectorizerType.old2, VectorizerType.new,
-            VectorizerType.first_layer_is_normal, VectorizerType.pixel_norm
-        ]
 
 
 class MergerType(Enum):
@@ -123,16 +100,7 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
         if self.style_time_mode == TimeMode.time_style_time_separate:
             name += f'-layer{self.style_layer}'
         else:
-            if self.vectorizer_type != VectorizerType.new:
-                name += f'-{self.vectorizer_type.value}'
-                if self.vectorizer_type in [
-                        VectorizerType.identity, VectorizerType.tanh
-                ]:
-                    pass
-                elif self.vectorizer_type.has_lr():
-                    name += f'-layer{self.style_layer}lr{self.style_lr_mul}'
-                else:
-                    name += f'-layer{self.style_layer}'
+            name += f'-identity'
 
         # elif self.style_time_mode == TimeMode.time_and_style:
         #     name += f'-layer{self.style_layer}lr{self.style_lr_mul}'
@@ -754,56 +722,8 @@ class TimeStyleSeperateEmbed(nn.Module):
             linear(time_out_channels, time_out_channels),
         )
 
-        if vectorizer_type == VectorizerType.new:
-            self.style = BeatGANsStyleVectorizer(cond_channels, out_channels,
-                                                 num_layer, lr_mul)
-        elif vectorizer_type == VectorizerType.pixel_norm:
-            self.style = BeatGANsStyleVectorizer(cond_channels,
-                                                 out_channels,
-                                                 num_layer,
-                                                 lr_mul,
-                                                 pixel_norm=True)
-        elif vectorizer_type == VectorizerType.first_layer_is_normal:
-            self.style = BeatGANsStyleVectorizer(cond_channels,
-                                                 out_channels,
-                                                 num_layer,
-                                                 lr_mul,
-                                                 no_fan_in_first_layer=True)
-        elif vectorizer_type == VectorizerType.old:
-            self.style = OldVectorizer(cond_channels, out_channels, num_layer,
-                                       lr_mul)
-        elif vectorizer_type == VectorizerType.old2:
-            self.style = OldVectorizer2(cond_channels, out_channels, num_layer,
-                                        lr_mul)
-        elif vectorizer_type == VectorizerType.identity:
+        if vectorizer_type == VectorizerType.identity:
             self.style = nn.Identity()
-        elif vectorizer_type == VectorizerType.tanh:
-            self.style = nn.Tanh()
-        elif vectorizer_type == VectorizerType.simple_pixel_norm:
-            self.style = SimpleVectorizer(in_dim=cond_channels,
-                                          out_dim=out_channels,
-                                          num_layers=num_layer,
-                                          use_pixel_norm=True,
-                                          activation=Activation.silu)
-        elif vectorizer_type == VectorizerType.simple:
-            self.style = SimpleVectorizer(in_dim=cond_channels,
-                                          out_dim=out_channels,
-                                          num_layers=num_layer,
-                                          use_pixel_norm=False,
-                                          activation=Activation.silu,
-                                          initialization='kaiming')
-        elif vectorizer_type == VectorizerType.linear:
-            self.style = SimpleVectorizer(in_dim=cond_channels,
-                                          out_dim=out_channels,
-                                          num_layers=num_layer,
-                                          use_pixel_norm=False,
-                                          activation=Activation.none)
-        elif vectorizer_type == VectorizerType.linear_pixel_norm:
-            self.style = SimpleVectorizer(in_dim=cond_channels,
-                                          out_dim=out_channels,
-                                          num_layers=num_layer,
-                                          use_pixel_norm=True,
-                                          activation=Activation.none)
         else:
             raise NotImplementedError()
 

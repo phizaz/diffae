@@ -59,7 +59,7 @@ class autoenc_base(autoenc):
     net_beatgans_resnet_time_emb_2xwidth: bool = False
     net_beatgans_resnet_cond_emb_2xwidth: bool = False
     net_beatgans_resnet_time_first: bool = True
-    net_enc_vectorizer_type: VectorizerType = VectorizerType.old
+    net_enc_vectorizer_type: VectorizerType = None
     net_beatgans_style_layer: int = 8
     net_beatgans_style_lr_mul: float = 0.1
 

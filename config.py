@@ -135,7 +135,6 @@ class TrainConfig(BaseConfig):
     net_beatgans_style_lr_mul: float = 0.1
     net_beatgans_style_time_mode: TimeMode = TimeMode.time_and_style
     net_beatgans_time_style_layer: int = 2
-    net_beatgans_resnet_use_inlayers_cond: bool = False
     net_beatgans_resnet_condition_scale_bias: float = 1
     net_beatgans_resnet_two_cond: bool = False
     net_beatgans_resnet_time_first: bool = False
@@ -162,7 +161,7 @@ class TrainConfig(BaseConfig):
     net_enc_tail_depth: int = 2
     net_enc_channel_mult: Tuple[int] = None
     net_enc_grad_checkpoint: bool = False
-    net_enc_vectorizer_type: VectorizerType = VectorizerType.new
+    net_enc_vectorizer_type: VectorizerType = None
     net_enc_tanh: bool = False
     net_autoenc_cond_at: CondAt = CondAt.all
     net_autoenc_time_at: CondAt = CondAt.all
@@ -669,8 +668,6 @@ class TrainConfig(BaseConfig):
                 use_checkpoint=self.net_beatgans_gradient_checkpoint,
                 use_fp16=False,
                 use_new_attention_order=False,
-                resnet_use_inlayers_condition=self.
-                net_beatgans_resnet_use_inlayers_cond,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
@@ -778,8 +775,6 @@ class TrainConfig(BaseConfig):
                 use_fp16=False,
                 use_new_attention_order=False,
                 enc_tanh=self.net_enc_tanh,
-                resnet_use_inlayers_condition=self.
-                net_beatgans_resnet_use_inlayers_cond,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,

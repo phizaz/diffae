@@ -13,7 +13,6 @@ from .fp16_util import convert_module_to_f16, convert_module_to_f32
 from .nn import (CheckpointGNShiftScaleSiLU, GatedConv, GateType, avg_pool_nd,
                  checkpoint, conv_nd, linear, normalization,
                  timestep_embedding, torch_checkpoint, zero_module)
-from .styleconv import EqualizedConv2DMod, StyleConvSequential
 
 
 class ScaleAt(Enum):
@@ -121,9 +120,6 @@ class ResBlockConfig(BaseConfig):
     out_channels: int = None
     # condition the resblock with time (and encoder's output)
     use_condition: bool = True
-    # also condition on the in_layers pipeline (default: False)
-    # hypothesis: stylegan has conditions on all conv layers, while the default UNET has conditions only on the out_layers pipeline
-    use_inlayers_condition: bool = False
     # whether to use 3x3 conv for skip path when the channels aren't matched
     use_conv: bool = False
     # dimension of conv (always 2 = 2d)
@@ -220,29 +216,6 @@ class ResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         #############################
-        # IN LAYERS CONDITIONS
-        #############################
-        if conf.use_inlayers_condition:
-            self.emb_inlayers = nn.Sequential(
-                nn.SiLU(),
-                linear(
-                    conf.emb_channels,
-                    2 *
-                    conf.channels if conf.time_emb_2xwidth else conf.channels,
-                ),
-            )
-
-            if conf.two_cond:
-                self.cond_emb_inlayers = nn.Sequential(
-                    nn.SiLU(),
-                    linear(
-                        conf.cond_emb_channels,
-                        2 * conf.channels
-                        if conf.cond_emb_2xwidth else conf.channels,
-                    ),
-                )
-
-        #############################
         # OUT LAYERS CONDITIONS
         #############################
         if conf.use_condition:
@@ -292,8 +265,7 @@ class ResBlock(TimestepBlock):
                 nn.Dropout(p=conf.dropout),
                 conv,
             ]
-            # self.out_layers = nn.Sequential(*layers)
-            self.out_layers = StyleConvSequential(*layers)
+            self.out_layers = nn.Sequential(*layers)
 
         if conf.use_after_norm:
             # same as stylegan1 demodulation
@@ -361,62 +333,14 @@ class ResBlock(TimestepBlock):
             assert lateral is not None
             x = th.cat([x, lateral], dim=1)
 
-        if self.conf.use_inlayers_condition:
-            # apply condition to the input blocks as well
-            # this is new to BeatGANs model
-
-            # it's possible that the network may not receieve the time emb
-            # this happens with autoenc and setting the time_at
-            if emb is not None:
-                emb_in = self.emb_inlayers(emb).type(x.dtype)
-            else:
-                emb_in = None
-
-            if self.conf.two_cond:
-                # it's possible that the network is two_cond
-                # but it doesn't get the second condition
-                # in which case, we ignore the second condition
-                # and treat as if the network has one condition
-                if stylespace_cond_in is not None:
-                    cond_in = stylespace_cond_in
-                else:
-                    if cond is None:
-                        cond_in = None
-                    else:
-                        cond_in = self.cond_emb_inlayers(cond).type(x.dtype)
-
-                if cond_in is not None:
-                    while len(cond_in.shape) < len(x.shape):
-                        cond_in = cond_in[..., None]
-            else:
-                cond_in = None
-
-            cond2_in = None
-
-            h = apply_conditions(
-                h=x,
-                emb=emb_in,
-                cond=cond_in,
-                cond2=cond2_in,
-                layers=self.in_layers,
-                time_first=self.conf.time_first,
-                scale_bias=self.conf.condition_scale_bias,
-                in_channels=self.conf.channels,
-                use_after_norm=False,
-                after_norm=None,
-                up_down_layer=self.h_upd,
-            )
-            # for the skip connection
+        if self.updown:
+            in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+            h = in_rest(x)
+            h = self.h_upd(h)
             x = self.x_upd(x)
+            h = in_conv(h)
         else:
-            if self.updown:
-                in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
-                h = in_rest(x)
-                h = self.h_upd(h)
-                x = self.x_upd(x)
-                h = in_conv(h)
-            else:
-                h = self.in_layers(x)
+            h = self.in_layers(x)
 
         if self.conf.use_condition:
             # it's possible that the network may not receieve the time emb

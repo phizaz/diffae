@@ -67,10 +67,6 @@ class BeatGANsUNetConfig(BaseConfig):
     # does the middle_blocks have attention as well?
     # default: True
     use_mid_attn: bool = True
-    # also apply conditions to the input_layers of the resblock
-    # default: False (as in BeatGANs)
-    # hypothesis: enabling more conditioning improves performance
-    resnet_use_inlayers_condition: bool = False
     resnet_condition_scale_bias: Union[float, Tuple[float]] = 1
     resnet_two_cond: bool = False
     resnet_cond_channels: int = None
@@ -116,8 +112,6 @@ class BeatGANsUNetConfig(BaseConfig):
         else:
             biases = self.resnet_condition_scale_bias
             name += f'-bias({biases[0]},{biases[1]})'
-        if self.resnet_use_inlayers_condition:
-            name += '-incond'
         if self.resnet_two_cond:
             name += '-twocond'
             if self.resnet_time_first:
@@ -166,14 +160,8 @@ class BeatGANsUNetModel(nn.Module):
                 conv_nd(conf.dims, conf.in_channels, ch, 3, padding=1))
         ])
 
-        # a hack!
-        style_at_input = True
-        style_at_mid = True
-        style_at_dec = True
-
         kwargs = dict(
             use_condition=True,
-            use_inlayers_condition=conf.resnet_use_inlayers_condition,
             condition_scale_bias=conf.resnet_condition_scale_bias,
             two_cond=conf.resnet_two_cond,
             time_first=conf.resnet_time_first,
