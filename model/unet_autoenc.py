@@ -187,7 +187,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 conv_resample=conf.conv_resample,
                 dims=conf.dims,
                 use_checkpoint=conf.use_checkpoint or conf.enc_grad_checkpoint,
-                use_fp16=conf.use_fp16,
                 num_heads=conf.num_heads,
                 num_head_channels=conf.num_head_channels,
                 resblock_updown=conf.resblock_updown,

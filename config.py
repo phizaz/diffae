@@ -756,7 +756,6 @@ class TrainConfig(BaseConfig):
                 style_time_mode=self.net_beatgans_style_time_mode,
                 time_style_layer=self.net_beatgans_time_style_layer,
                 use_checkpoint=self.net_beatgans_gradient_checkpoint,
-                use_fp16=False,
                 use_new_attention_order=False,
                 resnet_condition_scale_bias=self.
                 net_beatgans_resnet_condition_scale_bias,

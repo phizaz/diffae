@@ -52,7 +52,6 @@ class BeatGANsUNetConfig(BaseConfig):
     # don't use this, legacy from BeatGANs
     num_classes: int = None
     use_checkpoint: bool = False
-    use_fp16: bool = False
     # number of attention heads
     num_heads: int = 1
     # or specify the number of channels per attention head
@@ -123,7 +122,7 @@ class BeatGANsUNetModel(nn.Module):
         if conf.num_heads_upsample == -1:
             self.num_heads_upsample = conf.num_heads
 
-        self.dtype = th.float16 if conf.use_fp16 else th.float32
+        self.dtype = th.float32
 
         self.time_emb_channels = conf.time_embed_channels or conf.model_channels
         self.time_embed = nn.Sequential(
@@ -406,7 +405,6 @@ class BeatGANsEncoderConfig(BaseConfig):
     conv_resample: bool = True
     dims: int = 2
     use_checkpoint: bool = False
-    use_fp16: bool = False
     num_heads: int = 1
     num_head_channels: int = -1
     resblock_updown: bool = False
@@ -442,8 +440,7 @@ class BeatGANsEncoderModel(nn.Module):
     def __init__(self, conf: BeatGANsEncoderConfig):
         super().__init__()
         self.conf = conf
-
-        self.dtype = th.float16 if conf.use_fp16 else th.float32
+        self.dtype = th.float32
 
         if conf.use_time_condition:
             time_embed_dim = conf.model_channels * 4
