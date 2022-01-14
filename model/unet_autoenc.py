@@ -45,10 +45,6 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     time_style_layer: int = 2
     style_lr_mul: float = 0.1
     vectorizer_type: VectorizerType = VectorizerType.identity
-    time_at: CondAt = CondAt.all
-    cond_at: CondAt = CondAt.all
-    has_init: bool = False
-    merger_type: MergerType = MergerType.conv1
     latent_net_conf: MLPSkipNetConfig = None
     noise_net_conf: NoiseNetConfig = None
 
@@ -77,13 +73,6 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
                 name += '-tanh'
         else:
             name += '-extenc'
-
-        if self.time_at != CondAt.all:
-            name += f'-timeat{self.time_at.value}'
-        if self.cond_at != CondAt.all:
-            name += f'-at{self.cond_at.value}'
-        if self.has_init:
-            name += f'-init-merge{self.merger_type.value}'
 
         name += f'/{self.style_time_mode.value}'
         name += f'-identity'
@@ -210,114 +199,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 pool_tail_layer=conf.enc_pool_tail_layer,
                 last_act=Activation.tanh if conf.enc_tanh else Activation.none,
             ).make_model()
-
-        if conf.has_init:
-            # init block this allows the autoencoder to be standalone
-            # not used in the final version
-            highest_ch = conf.channel_mult[-1] * conf.model_channels
-            self.initial = nn.Parameter(torch.randn((1, highest_ch, 4, 4)))
-            self.initial_conv = nn.Conv2d(highest_ch, highest_ch, 3, padding=1)
-
-            # start from 4x4 upto the the lowest resolution of the unet
-            # these layers do not have lateral connections
-            # layers before the connections of Unet's encoder
-            lowest_resolution = conf.image_size // 2**(len(conf.channel_mult) -
-                                                       1)
-            print('lowest resolution:', lowest_resolution)
-            resolution = 4
-
-            kwargs = dict(
-                condition_type=conf.resnet_condition_type,
-                condition_scale_bias=conf.resnet_condition_scale_bias,
-                two_cond=conf.resnet_two_cond,
-                time_first=conf.resnet_time_first,
-                time_emb_2xwidth=conf.resnet_time_emb_2xwidth,
-                cond_emb_2xwidth=conf.resnet_cond_emb_2xwidth,
-                # gates are used in the merger
-                gate_type=conf.resnet_gate_type,
-                gate_init=conf.resnet_gate_init,
-            )
-
-            # to merge the Unet's encoder trunk with the pre blocks
-            if conf.merger_type == MergerType.block:
-                self.merger = ResBlockConfig(
-                    # only direct channels when gated
-                    channels=highest_ch,
-                    emb_channels=conf.embed_channels,
-                    dropout=conf.dropout,
-                    out_channels=highest_ch,
-                    dims=conf.dims,
-                    use_checkpoint=conf.use_checkpoint,
-                    # lateral is from the main trunk of the Unet's encoder
-                    has_lateral=True,
-                    lateral_channels=highest_ch,
-                    gated=True,
-                    **kwargs,
-                ).make_model()
-            else:
-                if conf.merger_type == MergerType.conv1:
-                    kernel = 1
-                    padding = 0
-                elif conf.merger_type == MergerType.conv3:
-                    kernel = 3
-                    padding = 1
-                else:
-                    raise NotImplementedError()
-
-                self.merger = GatedConv(
-                    highest_ch,
-                    highest_ch,
-                    highest_ch,
-                    kernel_size=kernel,
-                    padding=padding,
-                    gate_type=conf.resnet_gate_type,
-                    gate_init=conf.resnet_gate_init,
-                    has_conv_a=False,
-                )
-
-            self.pre_blocks = nn.ModuleList([])
-            while resolution < lowest_resolution:
-                layers = [
-                    ResBlockConfig(
-                        # only direct channels when gated
-                        channels=highest_ch,
-                        emb_channels=conf.embed_channels,
-                        dropout=conf.dropout,
-                        out_channels=highest_ch,
-                        dims=conf.dims,
-                        use_checkpoint=conf.use_checkpoint,
-                        **kwargs,
-                    ).make_model()
-                ]
-                if resolution in conf.attention_resolutions:
-                    layers.append(
-                        AttentionBlock(
-                            highest_ch,
-                            use_checkpoint=conf.use_checkpoint,
-                            num_heads=self.num_heads_upsample,
-                            num_head_channels=conf.num_head_channels,
-                            use_new_attention_order=conf.
-                            use_new_attention_order,
-                        ))
-                # increase the resolution
-                resolution *= 2
-                layers.append(
-                    ResBlockConfig(
-                        highest_ch,
-                        conf.embed_channels,
-                        conf.dropout,
-                        out_channels=highest_ch,
-                        dims=conf.dims,
-                        use_checkpoint=conf.use_checkpoint,
-                        up=True,
-                        **kwargs,
-                    ).make_model() if (
-                        conf.resblock_updown
-                    ) else Upsample(highest_ch,
-                                    conf.conv_resample,
-                                    dims=conf.dims,
-                                    out_channels=highest_ch))
-                self.pre_blocks.append(TimestepEmbedSequential(*layers))
 
         if conf.latent_net_conf is not None:
             self.latent_net = conf.latent_net_conf.make_model()
@@ -474,31 +355,14 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             # assert y.shape == (x.shape[0], )
             # emb = emb + self.label_emb(y)
 
-        if self.conf.time_at == CondAt.all:
-            enc_time_emb = emb
-            mid_time_emb = emb
-            dec_time_emb = emb
-        elif self.conf.time_at == CondAt.enc:
-            enc_time_emb = emb
-            mid_time_emb = None
-            dec_time_emb = None
-        else:
-            raise NotImplementedError()
-
-        if self.conf.cond_at == CondAt.all:
-            enc_cond_emb = cond_emb
-            mid_cond_emb = cond_emb
-            dec_cond_emb = cond_emb
-        elif self.conf.cond_at == CondAt.mid_dec:
-            enc_cond_emb = None
-            mid_cond_emb = cond_emb
-            dec_cond_emb = cond_emb
-        elif self.conf.cond_at == CondAt.dec:
-            enc_cond_emb = None
-            mid_cond_emb = None
-            dec_cond_emb = cond_emb
-        else:
-            raise NotImplementedError()
+        # where in the model to supply time conditions
+        enc_time_emb = emb
+        mid_time_emb = emb
+        dec_time_emb = emb
+        # where in the model to supply style conditions
+        enc_cond_emb = cond_emb
+        mid_cond_emb = cond_emb
+        dec_cond_emb = cond_emb
 
         # hs = []
         hs = [[] for _ in range(len(self.conf.channel_mult))]
@@ -547,23 +411,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             # happens when training only the autonecoder
             h = None
             hs = [[] for _ in range(len(self.conf.channel_mult))]
-
-        if self.conf.has_init:
-            n = len(h) if h is not None else len(x_start)
-            # (n, c, 4, 4)
-            init = self.initial.repeat(n, 1, 1, 1)
-            init = self.initial_conv(init)
-            # (n, c, h, w)
-            for module in self.pre_blocks:
-                init = module(init, emb=dec_time_emb, cond=dec_cond_emb)
-            # merge with the trunk (can work with None h)
-            if self.conf.merger_type == MergerType.block:
-                h = self.merger.forward(init,
-                                        emb=dec_time_emb,
-                                        cond=dec_cond_emb,
-                                        lateral=h)
-            else:
-                h = self.merger.forward(a=init, b=h)
 
         # output blocks
         k = 0

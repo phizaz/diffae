@@ -361,15 +361,6 @@ class Activation(Enum):
             raise NotImplementedError()
 
 
-class CondAt(Enum):
-    """
-    which layers recieve the encoder's conditions
-    """
-    all = 'all'
-    enc = 'enc'
-    mid_dec = 'middec'
-    dec = 'dec'
-
 
 class ManipulateLossType(Enum):
     bce = 'bce'

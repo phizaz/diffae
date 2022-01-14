@@ -1,7 +1,7 @@
 from model.unet import ScaleAt
 from model.latentnet import *
 from model.noisenet import NoiseNetConfig, NoiseNetType
-from model.unet_autoenc import CondAt, LatentGenerativeModelConfig, MergerType, TimeMode, VectorizerType
+from model.unet_autoenc import LatentGenerativeModelConfig, MergerType, TimeMode, VectorizerType
 from diffusion.resample import UniformSampler
 from diffusion.diffusion import space_timesteps
 from typing import Tuple
@@ -159,10 +159,6 @@ class TrainConfig(BaseConfig):
     net_enc_grad_checkpoint: bool = False
     net_enc_vectorizer_type: VectorizerType = None
     net_enc_tanh: bool = False
-    net_autoenc_cond_at: CondAt = CondAt.all
-    net_autoenc_time_at: CondAt = CondAt.all
-    net_autoenc_has_init: bool = False
-    net_autoenc_merger_type: MergerType = MergerType.conv1
     net_autoenc_stochastic: bool = False
     net_latent_activation: Activation = Activation.silu
     net_latent_attn_resolutions: Tuple[int] = tuple()
@@ -778,10 +774,6 @@ class TrainConfig(BaseConfig):
                 vectorizer_type=self.net_enc_vectorizer_type,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
-                cond_at=self.net_autoenc_cond_at,
-                time_at=self.net_autoenc_time_at,
-                has_init=self.net_autoenc_has_init,
-                merger_type=self.net_autoenc_merger_type,
                 latent_net_conf=latent_net_conf,
                 noise_net_conf=noise_net_conf,
                 resnet_cond_channels=self.net_beatgans_resnet_cond_channels,
