@@ -22,8 +22,6 @@ from dataset import *
 from dist_utils import *
 from lmdb_writer import *
 from metrics import *
-from model.nn import CloneGrad
-from model.unet_autoenc import LatentGenerativeModel
 from renderer import *
 
 

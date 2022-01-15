@@ -3,3 +3,4 @@ logs-cls
 log-latent
 __pycache__
 generated
+latent_infer

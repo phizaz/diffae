@@ -1,6 +1,5 @@
 from model.unet import ScaleAt
 from model.latentnet import *
-from model.unet_autoenc import TimeMode, VectorizerType
 from diffusion.resample import UniformSampler
 from diffusion.diffusion import space_timesteps
 from typing import Tuple
@@ -128,16 +127,10 @@ class TrainConfig(BaseConfig):
     net_enc_pool: str = 'depthconv'
     net_enc_pool_tail_layer: int = None
     net_beatgans_gradient_checkpoint: bool = False
-    net_beatgans_style_layer: int = 8
-    net_beatgans_style_lr_mul: float = 0.1
-    net_beatgans_style_time_mode: TimeMode = None
-    net_beatgans_time_style_layer: int = 2
-    net_beatgans_resnet_condition_scale_bias: float = 1
     net_beatgans_resnet_two_cond: bool = False
     net_beatgans_resnet_use_zero_module: bool = True
     net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.after_norm
     net_beatgans_resnet_cond_channels: int = None
-    net_beatgans_use_mid_attn: bool = True
     mmd_alphas: Tuple[float] = (0.5, )
     mmd_coef: float = 0.1
     latent_detach: bool = True
@@ -152,14 +145,12 @@ class TrainConfig(BaseConfig):
     net_enc_tail_depth: int = 2
     net_enc_channel_mult: Tuple[int] = None
     net_enc_grad_checkpoint: bool = False
-    net_enc_vectorizer_type: VectorizerType = None
     net_autoenc_stochastic: bool = False
     net_latent_activation: Activation = Activation.silu
     net_latent_attn_resolutions: Tuple[int] = tuple()
     net_latent_blocks: int = None
     net_latent_channel_mult: Tuple[int] = (1, 2, 4)
     net_latent_cond_both: bool = True
-    net_latent_condition_2x: bool = False
     net_latent_condition_bias: float = 0
     net_latent_dropout: float = 0
     net_latent_layers: int = None
@@ -561,13 +552,9 @@ class TrainConfig(BaseConfig):
                 resblock_updown=self.net_resblock_updown,
                 use_checkpoint=self.net_beatgans_gradient_checkpoint,
                 use_new_attention_order=False,
-                resnet_condition_scale_bias=self.
-                net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
-                resnet_scale_at=self.net_beatgans_resnet_scale_at,
-                use_mid_attn=self.net_beatgans_use_mid_attn,
             )
         elif self.model_name in [
                 ModelName.beatgans_autoenc,
@@ -590,7 +577,6 @@ class TrainConfig(BaseConfig):
                     num_time_emb_channels=self.net_latent_time_emb_channels,
                     activation=self.net_latent_activation,
                     use_norm=self.net_latent_use_norm,
-                    condition_2x=self.net_latent_condition_2x,
                     condition_bias=self.net_latent_condition_bias,
                     dropout=self.net_latent_dropout,
                     last_act=self.net_latent_net_last_act,
@@ -627,21 +613,13 @@ class TrainConfig(BaseConfig):
                 num_input_res_blocks=self.net_num_input_res_blocks,
                 out_channels=self.model_out_channels,
                 resblock_updown=self.net_resblock_updown,
-                style_layer=self.net_beatgans_style_layer,
-                style_lr_mul=self.net_beatgans_style_lr_mul,
-                style_time_mode=self.net_beatgans_style_time_mode,
-                time_style_layer=self.net_beatgans_time_style_layer,
                 use_checkpoint=self.net_beatgans_gradient_checkpoint,
                 use_new_attention_order=False,
-                resnet_condition_scale_bias=self.
-                net_beatgans_resnet_condition_scale_bias,
                 resnet_two_cond=self.net_beatgans_resnet_two_cond,
-                vectorizer_type=self.net_enc_vectorizer_type,
                 resnet_use_zero_module=self.
                 net_beatgans_resnet_use_zero_module,
                 latent_net_conf=latent_net_conf,
                 resnet_cond_channels=self.net_beatgans_resnet_cond_channels,
-                use_mid_attn=self.net_beatgans_use_mid_attn,
             )
         else:
             raise NotImplementedError(self.model_name)

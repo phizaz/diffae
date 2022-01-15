@@ -62,10 +62,6 @@ class BeatGANsUNetConfig(BaseConfig):
     resblock_updown: bool = True
     # never tried
     use_new_attention_order: bool = False
-    # does the middle_blocks have attention as well?
-    # default: True
-    use_mid_attn: bool = True
-    resnet_condition_scale_bias: Union[float, Tuple[float]] = 1
     resnet_two_cond: bool = False
     resnet_cond_channels: int = None
     # init the decoding conv layers with zero weights, this speeds up training
@@ -88,20 +84,16 @@ class BeatGANsUNetConfig(BaseConfig):
             name += f'-inpblk{self.num_input_res_blocks}'
         name += f'-attn{self.num_heads}(' + ','.join(
             str(x) for x in self.attention_resolutions) + ')'
-        if not self.use_mid_attn:
-            name += '-nomidattn'
         name += f'-dropout{self.dropout}'
 
         name += f'-normmod'
-        if isinstance(self.resnet_condition_scale_bias, Number):
-            name += f'-bias{self.resnet_condition_scale_bias}'
-        else:
-            biases = self.resnet_condition_scale_bias
-            name += f'-bias({biases[0]},{biases[1]})'
+        name += f'-bias1'
         if self.resnet_two_cond:
             name += '-twocond'
             name += '-timefirst'
         name += '-time2x'
+        # the checkpoint was mis-named
+        name += '-cond2x'
         if not self.resnet_use_zero_module:
             name += '-nonzero'
 
@@ -142,7 +134,6 @@ class BeatGANsUNetModel(nn.Module):
 
         kwargs = dict(
             use_condition=True,
-            condition_scale_bias=conf.resnet_condition_scale_bias,
             two_cond=conf.resnet_two_cond,
             use_zero_module=conf.resnet_use_zero_module,
             # style channels for the resnet block
@@ -235,7 +226,7 @@ class BeatGANsUNetModel(nn.Module):
                 num_heads=conf.num_heads,
                 num_head_channels=conf.num_head_channels,
                 use_new_attention_order=conf.use_new_attention_order,
-            ) if conf.use_mid_attn else nn.Identity(),
+            ),
             ResBlockConfig(
                 ch,
                 conf.embed_channels,

@@ -73,8 +73,6 @@ class ResBlockConfig(BaseConfig):
     use_checkpoint: bool = False
     up: bool = False
     down: bool = False
-    # the shift should start from 1
-    condition_scale_bias: float = 1
     # whether to condition with both time & encoder's output
     two_cond: bool = False
     # number of encoders' output channels
@@ -278,7 +276,7 @@ class ResBlock(TimestepBlock):
                 emb=emb_out,
                 cond=cond_out,
                 layers=self.out_layers,
-                scale_bias=self.conf.condition_scale_bias,
+                scale_bias=1,
                 in_channels=self.conf.out_channels,
                 up_down_layer=None,
             )

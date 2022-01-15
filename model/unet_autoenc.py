@@ -9,18 +9,8 @@ from .unet import *
 from choices import *
 
 
-class TimeMode(Enum):
-    # style only
-    time_style_separate = 'timestylesep'
-
-
-class VectorizerType(Enum):
-    identity = 'identity'
-
-
 @dataclass
 class BeatGANsAutoencConfig(BeatGANsUNetConfig):
-    use_external_encoder: bool = False
     # number of style channels
     enc_out_channels: int = 512
     enc_attn_resolutions: Tuple[int] = None
@@ -29,13 +19,6 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     enc_num_res_block: int = 2
     enc_channel_mult: Tuple[int] = None
     enc_grad_checkpoint: bool = False
-    style_time_mode: TimeMode = None
-    # unconditioned style layers
-    style_layer: int = 8
-    # film-layers conditioned on time
-    time_style_layer: int = 2
-    style_lr_mul: float = 0.1
-    vectorizer_type: VectorizerType = VectorizerType.identity
     latent_net_conf: MLPSkipNetConfig = None
 
     @property
@@ -43,23 +26,20 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
         name = super().name
         name = name.replace('netbeatgans', 'autoencbeatgans')
 
-        if not self.use_external_encoder:
-            name += f'-pool{self.enc_pool}'
-            if self.enc_pool == 'adaptivenonzerotail':
-                name += f'-tail{self.enc_pool_tail_layer}'
-            name += f'-ch{self.enc_out_channels}'
-            if self.enc_num_res_block != 2:
-                name += f'-resblk{self.enc_num_res_block}'
-            if self.enc_channel_mult is not None:
-                name += '-encch(' + ','.join(
-                    str(x) for x in self.enc_channel_mult) + ')'
-            if self.enc_attn_resolutions is not None:
-                name += '-encatt(' + ','.join(
-                    str(x) for x in self.enc_attn_resolutions) + ')'
-        else:
-            name += '-extenc'
+        name += f'-pool{self.enc_pool}'
+        if self.enc_pool == 'adaptivenonzerotail':
+            name += f'-tail{self.enc_pool_tail_layer}'
+        name += f'-ch{self.enc_out_channels}'
+        if self.enc_num_res_block != 2:
+            name += f'-resblk{self.enc_num_res_block}'
+        if self.enc_channel_mult is not None:
+            name += '-encch(' + ','.join(
+                str(x) for x in self.enc_channel_mult) + ')'
+        if self.enc_attn_resolutions is not None:
+            name += '-encatt(' + ','.join(
+                str(x) for x in self.enc_attn_resolutions) + ')'
 
-        name += f'/{self.style_time_mode.value}'
+        name += f'/timestylesep'
         name += f'-identity'
 
         if self.latent_net_conf is not None:
@@ -77,97 +57,33 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         self.conf = conf
 
         # having only time, cond
-        if conf.style_time_mode == TimeMode.time_style_separate:
-            self.time_embed = TimeStyleSeperateEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                out_channels=conf.embed_channels,
-                num_layer=conf.style_layer,
-                lr_mul=conf.style_lr_mul,
-                vectorizer_type=conf.vectorizer_type,
-            )
-        elif conf.style_time_mode == TimeMode.time_style_time_separate:
-            self.time_embed = TimeStyleTimeEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                num_layer=conf.style_layer,
-            )
-        elif conf.style_time_mode == TimeMode.time_style_time_residual_separate:
-            self.time_embed = TimeStyleTimeEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                num_layer=conf.style_layer,
-            )
-        elif conf.style_time_mode == TimeMode.time_and_style:
-            self.time_embed = TimeAndStyleEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                out_channels=conf.embed_channels,
-                num_layer=conf.style_layer,
-                lr_mul=conf.style_lr_mul,
-                vectorizer_type=conf.vectorizer_type,
-            )
-        elif conf.style_time_mode == TimeMode.time_varying_style:
-            self.time_embed = TimeVaryingStyleEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                out_channels=conf.embed_channels,
-                num_big_layer=conf.time_style_layer,
-                num_layer=conf.style_layer,
-                lr_mul=conf.style_lr_mul,
-                vectorizer_type=conf.vectorizer_type,
-            )
-        elif conf.style_time_mode == TimeMode.time_cond_is_style:
-            self.time_embed = TimeCondIsStyleEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                out_channels=conf.embed_channels,
-                num_layer=conf.style_layer,
-                lr_mul=conf.style_lr_mul,
-                vectorizer_type=conf.vectorizer_type,
-            )
-        elif conf.style_time_mode == TimeMode.time_cond_is_style_concat:
-            self.time_embed = TimeCondIsStyleConcatEmbed(
-                time_channels=conf.model_channels,
-                time_out_channels=conf.embed_channels,
-                cond_channels=conf.enc_out_channels,
-                out_channels=conf.embed_channels,
-                num_layer=conf.style_layer,
-                lr_mul=conf.style_lr_mul,
-                vectorizer_type=conf.vectorizer_type,
-            )
-        else:
-            raise NotImplementedError()
+        self.time_embed = TimeStyleSeperateEmbed(
+            time_channels=conf.model_channels,
+            time_out_channels=conf.embed_channels,
+        )
 
-        if not conf.use_external_encoder:
-            self.encoder = BeatGANsEncoderConfig(
-                image_size=conf.image_size,
-                in_channels=conf.in_channels,
-                model_channels=conf.model_channels,
-                out_hid_channels=conf.enc_out_channels,
-                out_channels=conf.enc_out_channels,
-                num_res_blocks=conf.enc_num_res_block,
-                attention_resolutions=(conf.enc_attn_resolutions
-                                       or conf.attention_resolutions),
-                dropout=conf.dropout,
-                channel_mult=conf.enc_channel_mult or conf.channel_mult,
-                use_time_condition=False,
-                conv_resample=conf.conv_resample,
-                dims=conf.dims,
-                use_checkpoint=conf.use_checkpoint or conf.enc_grad_checkpoint,
-                num_heads=conf.num_heads,
-                num_head_channels=conf.num_head_channels,
-                resblock_updown=conf.resblock_updown,
-                use_new_attention_order=conf.use_new_attention_order,
-                pool=conf.enc_pool,
-                pool_tail_layer=conf.enc_pool_tail_layer,
-            ).make_model()
+        self.encoder = BeatGANsEncoderConfig(
+            image_size=conf.image_size,
+            in_channels=conf.in_channels,
+            model_channels=conf.model_channels,
+            out_hid_channels=conf.enc_out_channels,
+            out_channels=conf.enc_out_channels,
+            num_res_blocks=conf.enc_num_res_block,
+            attention_resolutions=(conf.enc_attn_resolutions
+                                   or conf.attention_resolutions),
+            dropout=conf.dropout,
+            channel_mult=conf.enc_channel_mult or conf.channel_mult,
+            use_time_condition=False,
+            conv_resample=conf.conv_resample,
+            dims=conf.dims,
+            use_checkpoint=conf.use_checkpoint or conf.enc_grad_checkpoint,
+            num_heads=conf.num_heads,
+            num_head_channels=conf.num_head_channels,
+            resblock_updown=conf.resblock_updown,
+            use_new_attention_order=conf.use_new_attention_order,
+            pool=conf.enc_pool,
+            pool_tail_layer=conf.enc_pool_tail_layer,
+        ).make_model()
 
         if conf.latent_net_conf is not None:
             self.latent_net = conf.latent_net_conf.make_model()
@@ -412,35 +328,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         return AutoencReturn(pred=pred, cond=cond)
 
 
-@dataclass
-class LatentGenerativeModelConfig(BeatGANsAutoencConfig):
-    num_vec_layer: int = 8
-    vec_lr: float = 1
-
-    @property
-    def name(self):
-        name = super().name
-        name += f'_latentgen-layer{self.num_vec_layer}lr{self.vec_lr}'
-        return name
-
-    def make_model(self):
-        return LatentGenerativeModel(self)
-
-
-class LatentGenerativeModel(BeatGANsAutoencModel):
-    def __init__(self, conf: LatentGenerativeModelConfig):
-        super().__init__(conf)
-        self.conf = conf
-        self.vectorizer = BeatGANsStyleVectorizer(conf.enc_out_channels,
-                                                  conf.enc_out_channels,
-                                                  conf.num_vec_layer,
-                                                  lr_mul=conf.vec_lr,
-                                                  pixel_norm=True)
-
-    def noise_to_cond(self, noise: Tensor):
-        return self.vectorizer.forward(noise)
-
-
 class AutoencReturn(NamedTuple):
     pred: Tensor
     cond: Tensor = None
@@ -455,24 +342,10 @@ class EmbedReturn(NamedTuple):
     time_emb: Tensor = None
     # style only (but could depend on time)
     style: Tensor = None
-    style2: Tensor = None
 
 
-class TimeEmbed(nn.Module):
-    # no condition
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(in_channels, out_channels),
-            nn.SiLU(),
-            linear(out_channels, out_channels),
-        )
-
-    def forward(self, time_emb, cond=None):
-        return EmbedReturn(emb=self.time_embed(time_emb))
-
-
-class TimeTwoStyleSeperateEmbed(nn.Module):
+class TimeStyleSeperateEmbed(nn.Module):
+    # embed only style
     def __init__(self, time_channels, time_out_channels):
         super().__init__()
         self.time_embed = nn.Sequential(
@@ -480,32 +353,7 @@ class TimeTwoStyleSeperateEmbed(nn.Module):
             nn.SiLU(),
             linear(time_out_channels, time_out_channels),
         )
-
-    def forward(self, time_emb=None, cond=None, **kwargs):
-        if time_emb is None:
-            # happens with autoenc training mode
-            time_emb = None
-        else:
-            time_emb = self.time_embed(time_emb)
-        return EmbedReturn(emb=cond, time_emb=time_emb, style=cond)
-
-
-class TimeStyleSeperateEmbed(nn.Module):
-    # embed only style
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 out_channels, num_layer, lr_mul,
-                 vectorizer_type: VectorizerType):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-
-        if vectorizer_type == VectorizerType.identity:
-            self.style = nn.Identity()
-        else:
-            raise NotImplementedError()
+        self.style = nn.Identity()
 
     def forward(self, time_emb=None, cond=None, **kwargs):
         if time_emb is None:
@@ -515,241 +363,3 @@ class TimeStyleSeperateEmbed(nn.Module):
             time_emb = self.time_embed(time_emb)
         style = self.style(cond)
         return EmbedReturn(emb=style, time_emb=time_emb, style=style)
-
-
-class TimeStyleTimeEmbed(nn.Module):
-    # embed only style
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 num_layer):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-
-        self.style = MLPNetConfig(
-            num_channels=cond_channels,
-            num_hid_channels=cond_channels,
-            num_layers=num_layer,
-            num_time_emb_channels=time_channels,
-            activation=Activation.silu,
-            use_norm=False,
-            condition_type=ConditionType.scale_shift_norm,
-            condition_2x=False,
-            condition_bias=1,
-            dropout=0,
-            last_act=Activation.silu,
-            time_is_int=False).make_model()
-
-    def forward(self, time_emb=None, cond=None, time_cond_emb=None):
-        """
-        Args:
-            time_cond_emb: embedding time for the condition (it may not be the same as time_emb)
-        """
-        style = self.style.forward(cond, t=time_cond_emb).pred
-        if time_emb is None:
-            # happens with autoenc training mode
-            time_emb = None
-        else:
-            time_emb = self.time_embed(time_emb)
-        return EmbedReturn(emb=style, time_emb=time_emb, style=style)
-
-
-class TimeStyleTimeResidualEmbed(nn.Module):
-    # embed only style
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 num_layer):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-
-        self.style = MLPSkipNetConfig(
-            num_channels=cond_channels,
-            num_hid_channels=cond_channels,
-            num_layers=num_layer,
-            num_time_emb_channels=time_channels,
-            activation=Activation.silu,
-            use_norm=False,
-            condition_type=ConditionType.scale_shift_norm,
-            condition_2x=False,
-            condition_bias=1,
-            dropout=0,
-            last_act=Activation.silu,
-            time_is_int=False).make_model()
-
-    def forward(self, time_emb=None, cond=None, time_cond_emb=None):
-        """
-        Args:
-            time_cond_emb: embedding time for the condition (it may not be the same as time_emb)
-        """
-        style = self.style.forward(cond, t=time_cond_emb).pred
-        if time_emb is None:
-            # happens with autoenc training mode
-            time_emb = None
-        else:
-            time_emb = self.time_embed(time_emb)
-        return EmbedReturn(emb=style, time_emb=time_emb, style=style)
-
-
-class TimeAndStyleEmbed(nn.Module):
-    # time and style are independent only concat and project to the right width
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 out_channels, num_layer, lr_mul,
-                 vectorizer_type: VectorizerType):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-        if vectorizer_type == VectorizerType.new:
-            self.style = BeatGANsStyleVectorizer(cond_channels, out_channels,
-                                                 num_layer, lr_mul)
-        elif vectorizer_type == VectorizerType.old:
-            self.style = OldVectorizer(cond_channels, out_channels, num_layer,
-                                       lr_mul)
-        else:
-            raise NotImplementedError()
-        self.out = nn.Linear(out_channels + time_out_channels, out_channels)
-
-    def forward(self, time_emb, cond=None):
-        time_emb = self.time_embed(time_emb)
-        style = self.style(cond)
-        emb = self.out(torch.cat([time_emb, style], dim=1))
-        return EmbedReturn(emb=emb, time_emb=time_emb, style=style)
-
-
-class TimeVaryingStyleEmbed(nn.Module):
-    # the condition is modulated with time vector, cond_t
-    # cond_t is used to derive style_t
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 out_channels, num_big_layer, num_layer, lr_mul,
-                 vectorizer_type: VectorizerType):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-
-        big_mlp = []
-        for i in range(num_big_layer):
-            big_mlp.append(
-                FiLMLinear(in_channels=cond_channels,
-                           out_channels=cond_channels,
-                           cond_channels=time_out_channels,
-                           activation=True,
-                           norm=True))
-        self.big_mlp = FiLMSequential(*big_mlp)
-
-        if vectorizer_type == VectorizerType.new:
-            self.style = BeatGANsStyleVectorizer(cond_channels, out_channels,
-                                                 num_layer, lr_mul)
-        elif vectorizer_type == VectorizerType.old:
-            self.style = OldVectorizer(cond_channels, out_channels, num_layer,
-                                       lr_mul)
-        else:
-            raise NotImplementedError()
-
-        self.out = nn.Linear(out_channels + time_out_channels, out_channels)
-
-    def forward(self, time_emb, cond=None):
-        time_emb = self.time_embed(time_emb)
-        cond_t = self.big_mlp.forward(cond, time_emb)
-        style_t = self.style(cond_t)
-        emb = self.out(torch.cat([time_emb, style_t], dim=1))
-        return EmbedReturn(emb=emb, time_emb=time_emb, style=style_t)
-
-
-class TimeCondIsStyleEmbed(nn.Module):
-    # concat(time + cond) => style = emb
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 out_channels, num_layer, lr_mul,
-                 vectorizer_type: VectorizerType):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-
-        if vectorizer_type == VectorizerType.new:
-            self.style = BeatGANsStyleVectorizer(
-                cond_channels + time_out_channels, out_channels, num_layer,
-                lr_mul)
-        elif vectorizer_type == VectorizerType.old:
-            self.style = OldVectorizer(cond_channels + time_out_channels,
-                                       out_channels, num_layer, lr_mul)
-        else:
-            raise NotImplementedError()
-
-    def forward(self, time_emb, cond=None):
-        time_emb = self.time_embed(time_emb)
-        style = self.style(torch.cat([time_emb, cond], dim=1))
-        return EmbedReturn(emb=style, time_emb=time_emb, style=style)
-
-
-class TimeCondIsStyleConcatEmbed(nn.Module):
-    # seems to perform best!
-    # concat(time + cond) => style => concat(style + time) => emb
-    def __init__(self, time_channels, time_out_channels, cond_channels,
-                 out_channels, num_layer, lr_mul,
-                 vectorizer_type: VectorizerType):
-        super().__init__()
-        self.time_embed = nn.Sequential(
-            linear(time_channels, time_out_channels),
-            nn.SiLU(),
-            linear(time_out_channels, time_out_channels),
-        )
-
-        if vectorizer_type == VectorizerType.new:
-            self.style = BeatGANsStyleVectorizer(
-                cond_channels + time_out_channels, out_channels, num_layer,
-                lr_mul)
-        elif vectorizer_type == VectorizerType.old:
-            self.style = OldVectorizer(cond_channels + time_out_channels,
-                                       out_channels, num_layer, lr_mul)
-        else:
-            raise NotImplementedError()
-
-        self.out = nn.Linear(out_channels + time_out_channels, out_channels)
-
-    def forward(self, time_emb, cond=None):
-        time_emb = self.time_embed(time_emb)
-        style = self.style(torch.cat([time_emb, cond], dim=1))
-        emb = self.out(torch.cat([time_emb, style], dim=1))
-        return EmbedReturn(emb=emb, time_emb=time_emb, style=style)
-
-
-class FiLMSequential(nn.Sequential):
-    def forward(self, input, cond):
-        for module in self:
-            input = module(input, cond)
-        return input
-
-
-class FiLMLinear(nn.Module):
-    def __init__(self, in_channels, out_channels, cond_channels, activation,
-                 norm):
-        super().__init__()
-        self.norm = norm
-
-        self.linear = nn.Linear(in_channels, out_channels)
-        self.cond_linear = nn.Linear(cond_channels, out_channels * 2)
-        if norm:
-            self.norm = nn.LayerNorm(out_channels)
-        self.activation = nn.SiLU() if activation else nn.Identity()
-
-    def forward(self, x, cond):
-        x = self.linear(x)
-        if self.norm:
-            x = self.norm(x)
-        tmp = self.cond_linear(cond)
-        scale, shift = th.chunk(tmp, 2, dim=1)
-        x = x * scale + shift
-        x = self.activation(x)
-        return x
