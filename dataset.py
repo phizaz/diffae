@@ -13,20 +13,6 @@ import pandas as pd
 import torchvision.transforms.functional as Ftrans
 
 
-def make_cifar():
-    # legacy code from the github
-    dataset = CIFAR10(root='./data',
-                      train=True,
-                      download=True,
-                      transform=transforms.Compose([
-                          transforms.RandomHorizontalFlip(),
-                          transforms.ToTensor(),
-                          transforms.Normalize((0.5, 0.5, 0.5),
-                                               (0.5, 0.5, 0.5)),
-                      ]))
-    return dataset
-
-
 class ImageDataset(Dataset):
     def __init__(
         self,
@@ -97,40 +83,6 @@ class SubsetDataset(Dataset):
         return self.dataset[index]
 
 
-class LSUNHorse(Dataset):
-    def __init__(self,
-                 path,
-                 image_size,
-                 do_augment: bool = True,
-                 do_transform: bool = True,
-                 do_normalize: bool = True,
-                 **kwargs) -> None:
-        super().__init__()
-        self.data = LSUNClass(root=path)
-
-        transform = [
-            transforms.Resize(image_size),
-            transforms.CenterCrop(image_size),
-        ]
-        if do_augment:
-            transform.append(transforms.RandomHorizontalFlip())
-        if do_transform:
-            transform.append(transforms.ToTensor())
-        if do_normalize:
-            transform.append(
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-        self.transform = transforms.Compose(transform)
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        x, y = self.data[index]
-        if self.transform is not None:
-            x = self.transform(x)
-        return {'img': x, 'index': index}
-
-
 class BaseLMDB(Dataset):
     def __init__(self, path, original_resolution, zfill: int = 5):
         self.original_resolution = original_resolution
@@ -189,8 +141,8 @@ def make_transform(
 
 class FFHQlmdb(Dataset):
     def __init__(self,
-                 path,
-                 image_size,
+                 path=os.path.expanduser('datasets/ffhq256.lmdb'),
+                 image_size=256,
                  original_resolution=256,
                  split=None,
                  as_tensor: bool = True,
@@ -255,6 +207,7 @@ class Crop:
 
 
 def d2c_crop():
+    # from D2C paper for CelebA dataset.
     cx = 89
     cy = 121
     x1 = cy - 64
@@ -264,87 +217,10 @@ def d2c_crop():
     return Crop(x1, x2, y1, y2)
 
 
-class CelebAlmdb(Dataset):
-    def __init__(self,
-                 path,
-                 image_size,
-                 original_resolution=128,
-                 split=None,
-                 as_tensor: bool = True,
-                 do_augment: bool = True,
-                 do_normalize: bool = True,
-                 crop_d2c: bool = False,
-                 **kwargs):
-        self.original_resolution = original_resolution
-        self.data = BaseLMDB(path, original_resolution, zfill=7)
-        self.length = len(self.data)
-        self.crop_d2c = crop_d2c
-
-        if split is None:
-            self.offset = 0
-        else:
-            raise NotImplementedError()
-
-        if crop_d2c:
-            transform = [
-                d2c_crop(),
-                transforms.Resize(image_size),
-            ]
-        else:
-            transform = [
-                transforms.Resize(image_size),
-                transforms.CenterCrop(image_size),
-            ]
-
-        if do_augment:
-            transform.append(transforms.RandomHorizontalFlip())
-        if as_tensor:
-            transform.append(transforms.ToTensor())
-        if do_normalize:
-            transform.append(
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-        self.transform = transforms.Compose(transform)
-
-    def __len__(self):
-        return self.length
-
-    def __getitem__(self, index):
-        assert index < self.length
-        index = index + self.offset
-        img = self.data[index]
-        if self.transform is not None:
-            img = self.transform(img)
-        return {'img': img, 'index': index}
-
-
-class CelebAD2CCrop(CelebAlmdb):
-    def __init__(
-        self,
-        path=os.path.expanduser('~/datasets/celeba.lmdb'),
-        image_size=64,
-        original_resolution=None,
-        split=None,
-        as_tensor: bool = True,
-        do_augment: bool = True,
-        do_normalize: bool = True,
-        crop_d2c: bool = True,
-        **kwargs,
-    ):
-        super().__init__(path,
-                         image_size,
-                         original_resolution=original_resolution,
-                         split=split,
-                         as_tensor=as_tensor,
-                         do_augment=do_augment,
-                         do_normalize=do_normalize,
-                         crop_d2c=crop_d2c,
-                         **kwargs)
-
-
 class Horse_lmdb(Dataset):
     def __init__(self,
-                 path,
-                 image_size,
+                 path=os.path.expanduser('datasets/horse256.lmdb'),
+                 image_size=128,
                  original_resolution=256,
                  do_augment: bool = True,
                  do_transform: bool = True,
@@ -380,8 +256,8 @@ class Horse_lmdb(Dataset):
 
 class Bedroom_lmdb(Dataset):
     def __init__(self,
-                 path,
-                 image_size,
+                 path=os.path.expanduser('datasets/bedroom256.lmdb'),
+                 image_size=128,
                  original_resolution=256,
                  do_augment: bool = True,
                  do_transform: bool = True,
@@ -430,12 +306,11 @@ class CelebAttrDataset(Dataset):
     cls_to_id = {v: k for k, v in enumerate(id_to_cls)}
 
     def __init__(self,
-                 folder=os.path.expanduser('~/datasets/celeba_small_aligned'),
+                 folder,
                  image_size=64,
                  attr_path=os.path.expanduser(
-                     'data/celeba_anno/list_attr_celeba.txt'),
+                     'datasets/celeba_anno/list_attr_celeba.txt'),
                  ext='png',
-                 identity_path=os.path.expanduser('data/celeba_anno/identity_CelebA.txt'),
                  only_cls_name: str = None,
                  only_cls_value: int = None,
                  do_augment: bool = False,
@@ -446,7 +321,6 @@ class CelebAttrDataset(Dataset):
         self.folder = folder
         self.image_size = image_size
         self.ext = ext
-
 
         # relative paths (make it shorter, saves memory and faster to sort)
         paths = [
@@ -511,11 +385,15 @@ class CelebAttrDataset(Dataset):
 
 
 class CelebD2CAttrDataset(CelebAttrDataset):
+    """
+    the dataset is used in the D2C paper. 
+    it has a specific crop from the original CelebA.
+    """
     def __init__(self,
-                 folder=os.path.expanduser('~/datasets/celeba_small'),
+                 folder,
                  image_size=64,
                  attr_path=os.path.expanduser(
-                     'data/celeba_anno/list_attr_celeba.txt'),
+                     'datasets/celeba_anno/list_attr_celeba.txt'),
                  ext='jpg',
                  only_cls_name: str = None,
                  only_cls_value: int = None,
@@ -540,7 +418,7 @@ class CelebAttrFewshotDataset(Dataset):
         self,
         cls_name,
         K,
-        img_folder=os.path.expanduser('~/datasets/celeba_small_aligned'),
+        img_folder,
         img_size=64,
         ext='png',
         seed=0,
@@ -614,7 +492,7 @@ class CelebD2CAttrFewshotDataset(CelebAttrFewshotDataset):
     def __init__(self,
                  cls_name,
                  K,
-                 img_folder=os.path.expanduser('~/datasets/celeba_small'),
+                 img_folder,
                  img_size=64,
                  ext='jpg',
                  seed=0,
@@ -624,7 +502,7 @@ class CelebD2CAttrFewshotDataset(CelebAttrFewshotDataset):
                  do_augment: bool = False,
                  do_transform: bool = True,
                  do_normalize: bool = True,
-                 is_negative = False,   
+                 is_negative=False,
                  d2c: bool = True) -> None:
         super().__init__(cls_name,
                          K,
@@ -639,12 +517,10 @@ class CelebD2CAttrFewshotDataset(CelebAttrFewshotDataset):
                          do_transform=do_transform,
                          do_normalize=do_normalize,
                          d2c=d2c)
-        #TODO I added this
         self.is_negative = is_negative
 
 
 class CelebHQAttrDataset(Dataset):
-
     id_to_cls = [
         '5_o_Clock_Shadow', 'Arched_Eyebrows', 'Attractive', 'Bags_Under_Eyes',
         'Bald', 'Bangs', 'Big_Lips', 'Big_Nose', 'Black_Hair', 'Blond_Hair',
@@ -658,16 +534,16 @@ class CelebHQAttrDataset(Dataset):
     ]
     cls_to_id = {v: k for k, v in enumerate(id_to_cls)}
 
-    def __init__(self,
-                 path=os.path.expanduser('~/datasets/CelebAMask-HQ/celebahq.lmdb'),
-                 image_size=None,
-                 attr_path=os.path.expanduser(
-                     'data/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
-                 identity_path=os.path.expanduser('~/datasets/celeba_anno/identity_CelebA.txt'),
-                 original_resolution=256,
-                 do_augment: bool = False,
-                 do_transform: bool = True,
-                 do_normalize: bool = True):
+    def __init__(
+            self,
+            path=os.path.expanduser('datasets/celebahq256.lmdb'),
+            image_size=None,
+            attr_path=os.path.expanduser(
+                'datasets/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
+            original_resolution=256,
+            do_augment: bool = False,
+            do_transform: bool = True,
+            do_normalize: bool = True):
         super().__init__()
         self.image_size = image_size
         self.data = BaseLMDB(path, original_resolution, zfill=5)
@@ -689,15 +565,6 @@ class CelebHQAttrDataset(Dataset):
             # discard the top line
             f.readline()
             self.df = pd.read_csv(f, delim_whitespace=True)
-        # with open(identity_path) as f:
-        #     self.identity_list = pd.read_csv(f, names= ['img_name','id'],delim_whitespace=True)
-            #identity_list = []
-            # for i,line in enumerate(f):
-            #     # identity = int(line.split(" ")[-1])
-            #     # identity_list.append(identity)
-                
-        #self.identity_list = identity_list
-
 
     def pos_count(self, cls_name):
         return (self.df[cls_name] == 1).sum()
@@ -720,7 +587,7 @@ class CelebHQAttrDataset(Dataset):
 
         if self.transform is not None:
             img = self.transform(img)
-        return {'img': img, 'index': index, 'labels': torch.tensor(labels)}   # 'identity': self.identity_list.iloc[index]['id']}  # id is kinda wrong
+        return {'img': img, 'index': index, 'labels': torch.tensor(labels)}
 
 
 class CelebHQAttrFewshotDataset(Dataset):
@@ -792,100 +659,3 @@ class Repeat(Dataset):
     def __getitem__(self, index):
         index = index % self.original_len
         return self.dataset[index]
-
-
-class CelebHQLMDB(Dataset):
-    """
-    1024 x 1024 CelebA HQ dataset
-    30k images
-    """
-    def __init__(
-        self,
-        path=os.path.expanduser('~/datasets/CelebAMask-HQ/celebahq.lmdb'),
-        image_size=None,
-        original_resolution=256,
-        do_augment: bool = True,
-        do_transform: bool = True,
-        do_normalize: bool = True,
-    ):
-        super().__init__()
-        self.image_size = image_size
-        self.data = BaseLMDB(path, original_resolution, zfill=5)
-
-        transform = [
-            transforms.Resize(image_size),
-            transforms.CenterCrop(image_size),
-        ]
-        # must not augment lest it changes the lighting
-        if do_augment:
-            transform.append(transforms.RandomHorizontalFlip())
-        if do_transform:
-            transform.append(transforms.ToTensor())
-        if do_normalize:
-            transform.append(
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-        self.transform = transforms.Compose(transform)
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        # index here is the filename!
-        img = self.data[index]
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        return {'img': img, 'index': index}
-
-
-class CelebHQLightDataset(Dataset):
-
-    # spherical harmonics
-    id_to_cls = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-    cls_to_id = {v: k for k, v in enumerate(id_to_cls)}
-
-    def __init__(self,
-                 path,
-                 image_size,
-                 original_resolution=256,
-                 anno_path='data/celeba_hq_light/celeba_light.txt',
-                 do_transform: bool = True,
-                 do_normalize: bool = True):
-        super().__init__()
-        self.image_size = image_size
-        self.data = BaseLMDB(path, original_resolution, zfill=5)
-
-        transform = [
-            transforms.Resize(image_size),
-            transforms.CenterCrop(image_size),
-        ]
-        # must not augment lest it changes the lighting
-        if do_transform:
-            transform.append(transforms.ToTensor())
-        if do_normalize:
-            transform.append(
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-        self.transform = transforms.Compose(transform)
-
-        with open(anno_path) as f:
-            self.df = pd.read_csv(f, delim_whitespace=True, header=None)
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, index):
-        row = self.df.iloc[index]
-        img_name = row[0]
-        img_idx, ext = img_name.split('.')
-        img = self.data[img_idx]
-        # average of three-consecutive columns
-        labels = []
-        for i in range(0, 27, 3):
-            idx = i + 1
-            labels.append(float(row[idx:idx + 3].mean()))
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        return {'img': img, 'index': index, 'labels': torch.tensor(labels)}

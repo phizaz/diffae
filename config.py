@@ -62,7 +62,7 @@ class TrainConfig(BaseConfig):
     train_pred_xstart_detach: bool = True
     train_interpolate_prob: float = 0
     train_interpolate_img: bool = False
-    manipulate_mode: ManipulateMode = ManipulateMode.celeba_all
+    manipulate_mode: ManipulateMode = ManipulateMode.celebahq_all
     manipulate_cls: str = None
     manipulate_shots: int = None
     manipulate_loss: ManipulateLossType = ManipulateLossType.bce
@@ -365,10 +365,6 @@ class TrainConfig(BaseConfig):
                             image_size=self.img_size,
                             split='train',
                             **kwargs)
-        elif self.data_name == 'horse':
-            return LSUNHorse(path=path or self.data_path,
-                             image_size=self.img_size,
-                             **kwargs)
         elif self.data_name == 'horse256':
             return Horse_lmdb(path=path or self.data_path,
                               image_size=self.img_size,

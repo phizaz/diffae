@@ -41,6 +41,7 @@ class ClsModel(pl.LightningModule):
             self.ema_model = copy.deepcopy(self.model)
             self.model.requires_grad_(False)
             self.ema_model.requires_grad_(False)
+            self.ema_model.eval()
 
             if conf.pretrain is not None:
                 print(f'loading pretrain ... {conf.pretrain.name}')
@@ -59,17 +60,9 @@ class ClsModel(pl.LightningModule):
             else:
                 self.conds_mean = None
                 self.conds_std = None
-        elif conf.train_mode == TrainMode.manipulate_imgt:
-            # need a sampler to destroy the input image
-            self.sampler = conf.make_diffusion_conf().make_sampler()
-            self.T_sampler = conf.make_T_sampler()
 
-        if conf.manipulate_mode in [
-                ManipulateMode.celeba_all, ManipulateMode.celebahq_all
-        ]:
+        if conf.manipulate_mode in [ManipulateMode.celebahq_all]:
             num_cls = len(CelebAttrDataset.id_to_cls)
-        elif conf.manipulate_mode == ManipulateMode.relighting:
-            num_cls = len(CelebHQLightDataset.id_to_cls)
         elif conf.manipulate_mode.is_single_class():
             num_cls = 1
         else:
@@ -79,11 +72,6 @@ class ClsModel(pl.LightningModule):
         if conf.train_mode == TrainMode.manipulate:
             # latent manipluation requires only a linear classifier
             self.classifier = nn.Linear(conf.style_ch, num_cls)
-        elif conf.train_mode.is_manipluate_img():
-            # this would be a classification model
-            conf.net_enc_num_cls = num_cls
-            self.classifier: BeatGANsEncoderModel = conf.make_model_conf(
-            ).make_model()
         else:
             raise NotImplementedError()
 
@@ -122,23 +110,7 @@ class ClsModel(pl.LightningModule):
         return cond
 
     def load_dataset(self):
-        if self.conf.manipulate_mode == ManipulateMode.celeba_all:
-            return CelebAttrDataset(
-                data_paths['celeba_aligned'][0],
-                self.conf.img_size,
-                data_paths['celeba_anno'],
-                do_augment=True,
-            )
-        elif self.conf.manipulate_mode == ManipulateMode.celeba_fewshot:
-            return CelebAttrFewshotDataset(
-                cls_name=self.conf.manipulate_cls,
-                K=self.conf.manipulate_shots,
-                img_folder=data_paths['celeba_aligned'][0],
-                img_size=self.conf.img_size,
-                seed=self.conf.manipulate_seed,
-                all_neg=False,
-                do_augment=True)
-        elif self.conf.manipulate_mode == ManipulateMode.d2c_fewshot:
+        if self.conf.manipulate_mode == ManipulateMode.d2c_fewshot:
             return CelebD2CAttrFewshotDataset(
                 cls_name=self.conf.manipulate_cls,
                 K=self.conf.manipulate_shots,
@@ -148,38 +120,10 @@ class ClsModel(pl.LightningModule):
                 all_neg=False,
                 do_augment=True,
             )
-        elif self.conf.manipulate_mode == ManipulateMode.celeba_fewshot_allneg:
-            # positive-unlabeled classifier needs to keep the class ratio 1:1
-            # we use two dataloaders, one for each class, to stabiliize the training
-
-            # TODO I changed here
-
-            return [
-                CelebAttrFewshotDataset(
-                    cls_name=self.conf.manipulate_cls,
-                    K=self.conf.manipulate_shots,
-                    img_folder=data_paths['celeba_aligned'][0],
-                    img_size=self.conf.img_size,
-                    only_cls_name=self.conf.manipulate_cls,
-                    only_cls_value=1,
-                    seed=self.conf.manipulate_seed,
-                    all_neg=True,
-                    do_augment=True),
-                CelebAttrFewshotDataset(
-                    cls_name=self.conf.manipulate_cls,
-                    K=self.conf.manipulate_shots,
-                    img_folder=data_paths['celeba_aligned'][0],
-                    img_size=self.conf.img_size,
-                    only_cls_name=self.conf.manipulate_cls,
-                    only_cls_value=-1,
-                    seed=self.conf.manipulate_seed,
-                    all_neg=True,
-                    do_augment=True),
-            ]
         elif self.conf.manipulate_mode == ManipulateMode.d2c_fewshot_allneg:
             # positive-unlabeled classifier needs to keep the class ratio 1:1
             # we use two dataloaders, one for each class, to stabiliize the training
-            img_folder =  '/home/nessessence/mnt_tl_vision05/home/konpat/datasets/celeba_small'   # data_paths['celeba'][0] 
+            img_folder = '/home/nessessence/mnt_tl_vision05/home/konpat/datasets/celeba_small'  # data_paths['celeba'][0]
 
             return [
                 CelebD2CAttrFewshotDataset(
@@ -208,18 +152,6 @@ class ClsModel(pl.LightningModule):
                                       self.conf.img_size,
                                       data_paths['celebahq_anno'],
                                       do_augment=True)
-        elif self.conf.manipulate_mode == ManipulateMode.celebahq_fewshot:
-            return CelebHQAttrFewshotDataset(cls_name=self.conf.manipulate_cls,
-                                             K=self.conf.manipulate_shots,
-                                             path=data_paths['celebahq'][0],
-                                             image_size=self.conf.img_size,
-                                             do_augment=True)
-        elif self.conf.manipulate_mode == ManipulateMode.relighting:
-            return CelebHQLightDataset(
-                data_paths['celebahq'][0],
-                image_size=self.conf.img_size,
-                anno_path=data_paths['celeba_relight'],
-            )
         else:
             raise NotImplementedError()
 
@@ -404,43 +336,3 @@ def train_cls(conf: TrainConfig, gpus):
         plugins=plugins,
     )
     trainer.fit(model)
-
-
-if __name__ == '__main__':
-    from run_templates import *
-
-    conf = celeba64_autoenc()
-    conf.train_mode = TrainMode.manipulate
-    conf.manipulate_mode = ManipulateMode.celeba_all
-    conf.batch_size = 128
-    conf.pretrain = PretrainConfig(
-        '48M',
-        f'logs/{celeba64_autoenc().name}/last.ckpt',
-    )
-
-    # conf = ffhq128_autoenc()
-    # conf.train_mode = TrainMode.manipulate
-    # conf.manipulate_mode = ManipulateMode.celeba_fewshot
-    # conf.manipulate_cls = 'Young'
-    # conf.manipulate_shots = 20
-    # conf.postfix = ''
-    # conf.batch_size = 40
-    # conf.total_samples = 200_000
-    # conf.pretrain = PretrainConfig(
-    #     '48M',
-    #     f'logs/{ffhq128_autoenc().name}/last.ckpt',
-    # )
-
-    # conf = ffhq128_autoenc()
-    # conf.train_mode = TrainMode.manipulate
-    # conf.manipulate_mode = ManipulateMode.relighting
-    # conf.manipulate_loss = ManipulateLossType.mse
-    # conf.postfix = ''
-    # conf.batch_size = 128
-    # conf.total_samples = 1_000_000
-    # conf.pretrain = PretrainConfig(
-    #     '48M',
-    #     f'logs/{ffhq128_autoenc().name}/last.ckpt',
-    # )
-
-    train_cls(conf, [1])

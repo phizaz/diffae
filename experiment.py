@@ -39,6 +39,7 @@ class LitModel(pl.LightningModule):
         self.model = conf.make_model_conf().make_model()
         self.ema_model = copy.deepcopy(self.model)
         self.ema_model.requires_grad_(False)
+        self.ema_model.eval()
 
         model_size = 0
         for param in self.model.parameters():
@@ -69,7 +70,7 @@ class LitModel(pl.LightningModule):
             print(f'loading pretrain ... {conf.pretrain.name}')
             state = torch.load(conf.pretrain.path, map_location='cpu')
             print('step:', state['global_step'])
-            print(self.load_state_dict(state['state_dict'], strict=False))
+            self.load_state_dict(state['state_dict'], strict=False)
 
         if conf.latent_infer_path is not None:
             print('loading latent stats ...')

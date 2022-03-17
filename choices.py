@@ -5,8 +5,6 @@ from torch import nn
 class TrainMode(Enum):
     # manipulate mode = training the classifier
     manipulate = 'manipulate'
-    # the classifier on the image domain
-    manipulate_img = 'manipulateimg'
     # default trainin mode!
     diffusion = 'diffusion'
     # default latent training mode!
@@ -16,12 +14,6 @@ class TrainMode(Enum):
     def is_manipulate(self):
         return self in [
             TrainMode.manipulate,
-            TrainMode.manipulate_img,
-        ]
-
-    def is_manipluate_img(self):
-        return self in [
-            TrainMode.manipulate_img,
         ]
 
     def is_diffusion(self):
@@ -61,49 +53,32 @@ class ManipulateMode(Enum):
     how to train the classifier to manipulate
     """
     # train on whole celeba attr dataset
-    celeba_all = 'all'
     celebahq_all = 'celebahq_all'
-    # train on a few show subset
-    celeba_fewshot = 'fewshot'
-    celeba_fewshot_allneg = 'fewshotallneg'
     # celeba with D2C's crop
     d2c_fewshot = 'd2cfewshot'
     d2c_fewshot_allneg = 'd2cfewshotallneg'
-    celebahq_fewshot = 'celebahq_fewshot'
-    relighting = 'light'
 
     def is_celeba_attr(self):
         return self in [
-            ManipulateMode.celeba_all,
-            ManipulateMode.celeba_fewshot,
-            ManipulateMode.celeba_fewshot_allneg,
             ManipulateMode.d2c_fewshot,
             ManipulateMode.d2c_fewshot_allneg,
             ManipulateMode.celebahq_all,
-            ManipulateMode.celebahq_fewshot,
         ]
 
     def is_single_class(self):
         return self in [
-            ManipulateMode.celeba_fewshot,
-            ManipulateMode.celeba_fewshot_allneg,
             ManipulateMode.d2c_fewshot,
             ManipulateMode.d2c_fewshot_allneg,
-            ManipulateMode.celebahq_fewshot,
         ]
 
     def is_fewshot(self):
         return self in [
-            ManipulateMode.celeba_fewshot,
-            ManipulateMode.celeba_fewshot_allneg,
             ManipulateMode.d2c_fewshot,
             ManipulateMode.d2c_fewshot_allneg,
-            ManipulateMode.celebahq_fewshot,
         ]
 
     def is_fewshot_allneg(self):
         return self in [
-            ManipulateMode.celeba_fewshot_allneg,
             ManipulateMode.d2c_fewshot_allneg,
         ]
 
