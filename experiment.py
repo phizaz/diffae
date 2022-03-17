@@ -91,6 +91,51 @@ class LitModel(pl.LightningModule):
             self.device)
         return cond
 
+    def sample(self, N, device):
+        noise = torch.randn(N,
+                            3,
+                            self.conf.img_size,
+                            self.conf.img_size,
+                            device=device)
+        pred_img = render_uncondition(
+            self.conf,
+            self.ema_model,
+            noise,
+            sampler=self.eval_sampler,
+            latent_sampler=self.eval_latent_sampler,
+            conds_mean=self.conds_mean,
+            conds_std=self.conds_std,
+        )
+        pred_img = (pred_img + 1) / 2
+        return pred_img
+
+    def render(self, noise, cond=None):
+        if cond is not None:
+            pred_img = render_condition(self.conf,
+                                        self.ema_model,
+                                        noise,
+                                        sampler=self.eval_sampler,
+                                        cond=cond)
+        else:
+            pred_img = render_uncondition(self.conf,
+                                          self.ema_model,
+                                          noise,
+                                          sampler=self.eval_sampler,
+                                          latent_sampler=None)
+        pred_img = (pred_img + 1) / 2
+        return pred_img
+
+    def encode(self, x):
+        # TODO:
+        assert self.conf.model_type.has_autoenc()
+        cond = self.ema_model.encoder.forward(x)
+        return cond
+
+    def encode_stochastic(self, x, cond):
+        out = self.eval_sampler.ddim_reverse_sample_loop(
+            self.ema_model, x, model_kwargs={'cond': cond})
+        return out['sample']
+
     def forward(self, noise=None, x_start=None, ema_model: bool = False):
         with amp.autocast(False):
             if ema_model:
@@ -878,8 +923,10 @@ def train(conf: TrainConfig, gpus, nodes=1, mode: str = 'train'):
                                  every_n_train_steps=conf.save_every_samples //
                                  conf.batch_size_effective)
     checkpoint_path = f'{conf.logdir}/last.ckpt'
+    print('ckpt path:', checkpoint_path)
     if os.path.exists(checkpoint_path):
         resume = checkpoint_path
+        print('resume!')
     else:
         if conf.continue_from is not None:
             # continue from a checkpoint

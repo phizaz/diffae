@@ -70,37 +70,6 @@ class BeatGANsUNetConfig(BaseConfig):
     # gradient checkpoint the attention operation
     attn_checkpoint: bool = False
 
-    @property
-    def name(self):
-        name = f'netbeatgans-ch{self.model_channels}('
-        name += ','.join(str(x) for x in self.channel_mult) + ')'
-        if self.input_channel_mult is not None:
-            name += f'-inpch{self.model_channels}('
-            name += ','.join(str(x) for x in self.input_channel_mult) + ')'
-        if self.embed_channels > 0:
-            name += f'-emb{self.embed_channels}'
-        name += f'-blk{self.num_res_blocks}'
-        if self.num_input_res_blocks is not None:
-            name += f'-inpblk{self.num_input_res_blocks}'
-        name += f'-attn{self.num_heads}(' + ','.join(
-            str(x) for x in self.attention_resolutions) + ')'
-        name += f'-dropout{self.dropout}'
-
-        name += f'-normmod'
-        name += f'-bias1'
-        if self.resnet_two_cond:
-            name += '-twocond'
-            name += '-timefirst'
-        name += '-time2x'
-        # the checkpoint was mis-named
-        name += '-cond2x'
-        if not self.resnet_use_zero_module:
-            name += '-nonzero'
-
-        if self.resblock_updown:
-            name += '-residue'
-        return name
-
     def make_model(self):
         return BeatGANsUNetModel(self)
 

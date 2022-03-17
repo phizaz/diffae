@@ -91,39 +91,30 @@ def evaluate_lpips(
                 x_T = torch.randn((len(imgs), 3, conf.img_size, conf.img_size),
                                   device=device)
 
-            if conf.train_mode.is_parallel_latent_diffusion():
-                pred_imgs = render_condition_no_latent_diffusion(
-                    conf,
-                    model,
-                    x_T,
-                    imgs,
-                    cond=None,
+            if conf.model_type == ModelType.ddpm:
+                # the case where you want to calculate the inversion capability of the DDIM model
+                assert use_inverted_noise
+                pred_imgs = render_uncondition(
+                    conf=conf,
+                    model=model,
+                    x_T=x_T,
                     sampler=sampler,
-                    latent_sampler=latent_sampler)
+                    latent_sampler=latent_sampler,
+                )
             else:
-                if conf.model_type == ModelType.ddpm:
-                    # the case where you want to calculate the inversion capability of the DDIM model
-                    assert use_inverted_noise
-                    pred_imgs = render_uncondition(
-                        conf=conf,
-                        model=model,
-                        x_T=x_T,
-                        sampler=sampler,
-                        latent_sampler=latent_sampler,
-                    )
-                else:
-                    pred_imgs = render_condition(conf=conf,
-                                                 model=model,
-                                                 x_T=x_T,
-                                                 x_start=imgs,
-                                                 cond=None,
-                                                 sampler=sampler,
-                                                 latent_sampler=latent_sampler)
-                # # returns {'cond', 'cond2'}
-                # conds = model.encode(imgs)
-                # pred_imgs = sampler.sample(model=model,
-                #                            noise=x_T,
-                #                            model_kwargs=conds)
+                pred_imgs = render_condition(conf=conf,
+                                             model=model,
+                                             x_T=x_T,
+                                             x_start=imgs,
+                                             cond=None,
+                                             sampler=sampler,
+                                             latent_sampler=latent_sampler)
+            # # returns {'cond', 'cond2'}
+            # conds = model.encode(imgs)
+            # pred_imgs = sampler.sample(model=model,
+            #                            noise=x_T,
+            #                            model_kwargs=conds)
+
             # (n, 1, 1, 1) => (n, )
             scores['lpips'].append(lpips_fn.forward(imgs, pred_imgs).view(-1))
 

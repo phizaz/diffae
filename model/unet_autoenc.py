@@ -106,11 +106,11 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         return torch.randn(n, self.conf.enc_out_channels, device=device)
 
     def noise_to_cond(self, noise: Tensor):
+        raise NotImplementedError()
         assert self.conf.noise_net_conf is not None
         return self.noise_net.forward(noise)
 
     def encode(self, x):
-        assert not self.conf.use_external_encoder
         cond = self.encoder.forward(x)
         return {'cond': cond}
 
@@ -181,23 +181,12 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             cond = None
         else:
             if cond is None:
-                if self.conf.is_stochastic:
-                    if x_start is None:
-                        # sample if don't have either x_start and cond
-                        cond = self.sample_z(len(x), device=x.device)
-                    else:
-                        # (n, c*2)
-                        tmp = self.encoder.forward(x_start)
-                        # (n, c), (n, c)
-                        mu, logvar = torch.chunk(tmp, 2, dim=1)
-                        cond = self.reparameterize(mu, logvar)
-                else:
-                    if x is not None:
-                        assert len(x) == len(
-                            x_start), f'{len(x)} != {len(x_start)}'
+                if x is not None:
+                    assert len(x) == len(
+                        x_start), f'{len(x)} != {len(x_start)}'
 
-                    tmp = self.encode(x_start)
-                    cond = tmp['cond']
+                tmp = self.encode(x_start)
+                cond = tmp['cond']
 
         if t is not None:
             _t_emb = timestep_embedding(t, self.conf.model_channels)

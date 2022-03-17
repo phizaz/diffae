@@ -2,7 +2,7 @@ import torch
 from run_templates import *
 from tqdm.autonotebook import tqdm
 
-conf = ffhq128_autoenc_200M()
+conf = ffhq128_autoenc_130M()
 # conf = ffhq256_autoenc()
 conf.device = 'cuda:0'
 print(conf.name)

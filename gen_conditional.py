@@ -246,7 +246,7 @@ class GenCond:
             return pred_img
 
     def load(self):
-        state = torch.load(f'log-latent/{self.conf.name}/last.ckpt',
+        state = torch.load(f'checkpoints/{self.conf.name}/last.ckpt',
                            map_location='cpu')
         print('main step:', state['global_step'])
         model = LitModel(self.conf)
@@ -255,7 +255,7 @@ class GenCond:
         return model
 
     def load_cls(self):
-        state = torch.load(f'logs-cls/{self.cls_conf.name}/last.ckpt',
+        state = torch.load(f'checkpoints/{self.cls_conf.name}/last.ckpt',
                            map_location='cpu')
         print('latent step:', state['global_step'])
         model = ClsModel(self.cls_conf)

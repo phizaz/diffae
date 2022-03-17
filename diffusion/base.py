@@ -355,33 +355,7 @@ class GaussianDiffusionBeatGans:
         else:
             raise NotImplementedError(self.loss_type)
 
-        if self.conf.model_type == ModelType.vaeddpm:
-            # also include the vae prior loss
-            model_forward: AutoencReturn
-            # (n, c)
-            loss_kl = -0.5 * (1 + model_forward.cond_logvar -
-                              model_forward.cond_mu**2 -
-                              model_forward.cond_logvar.exp())
-            # factor between latent code and pixels
-            # because vae losses are "sum" over dimensions
-            dim_factor = loss_kl[0].numel() / x_t[0].numel()
-            # (n, )
-            loss_kl = mean_flat(loss_kl) * dim_factor
-            terms['vae'] = loss_kl
-            terms['loss'] = terms['loss'] + terms['vae']
-        elif self.conf.model_type == ModelType.mmdddpm:
-            # using mmd loss on the latent
-            terms['mmd'] = self.mmd_loss(model, model_forward.cond)
-            terms['loss'] = terms['loss'] + terms['mmd']
-
         return terms
-
-    def mmd_loss(self, model: Model, cond):
-        cond = cond.float()
-        square_mmd = SquaredMMD(alphas=self.conf.mmd_alphas)
-        prior = th.randn_like(cond)
-        prior = model.noise_to_cond(prior)
-        return square_mmd(cond, prior) * self.conf.mmd_coef
 
     def sample(self,
                model: Model,
@@ -935,7 +909,7 @@ class GaussianDiffusionBeatGans:
                 T.append(t)
 
         return {
-            #  x0' "
+            #  xT "
             'sample': sample,
             # (1, ..., T)
             'sample_t': sample_t,

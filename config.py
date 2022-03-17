@@ -184,7 +184,7 @@ class TrainConfig(BaseConfig):
     T_sampler: str = 'uniform'
     T: int = 1_000
     total_samples: int = 10_000_000
-    warmup: int = 5000
+    warmup: int = 0
     pretrain: PretrainConfig = None
     continue_from: PretrainConfig = None
     eval_programs: Tuple[str] = None
@@ -194,107 +194,18 @@ class TrainConfig(BaseConfig):
     use_cache_dataset: bool = False
     data_cache_dir: str = os.path.expanduser('~/cache')
     work_cache_dir: str = os.path.expanduser('~/mycache')
-
     # data_cache_dir: str = os.path.expanduser('/scratch/konpat')
     # work_cache_dir: str = os.path.expanduser('/scratch/konpat')
+    name: str = ''
 
     def __post_init__(self):
         self.batch_size_eval = self.batch_size_eval or self.batch_size
         self.data_val_name = self.data_val_name or self.data_name
 
-    @property
-    def name(self):
-        self.make_model_conf()
-        names = []
-        tmp = f'{self.data_name}{self.img_size}-bs{self.batch_size}'
-        if self.accum_batches > 1:
-            tmp += f'accum{self.accum_batches}'
-        if self.optimizer != OptimizerType.adam:
-            tmp += f'-{self.optimizer.value}lr{self.lr}'
-        else:
-            tmp += f'-lr{self.lr}'
-        if self.weight_decay > 0:
-            tmp += f'wd{self.weight_decay}'
-        if self.grad_clip != 1:
-            if self.grad_clip < 0:
-                tmp += '-noclip'
-            else:
-                tmp += f'-clip{self.grad_clip}'
-        if self.warmup != 5000:
-            tmp += f'-warmup{self.warmup}'
-
-        if self.train_mode.is_manipulate():
-            tmp += f'_mani{self.manipulate_mode.value}'
-            if self.manipulate_mode.is_single_class():
-                tmp += f'-{self.manipulate_cls}'
-            if self.manipulate_mode.is_fewshot():
-                tmp += f'-{self.manipulate_shots}shots'
-            if self.manipulate_znormalize:
-                tmp += '-znorm'
-            if self.manipulate_mode.is_fewshot():
-                tmp += f'-seed{self.manipulate_seed}'
-
-        if self.train_mode.is_diffusion():
-            tmp += f'_ddpm-T{self.T}-Tgen{self.T_eval}'
-            if self.diffusion_type == 'default':
-                tmp += '-default'
-            elif self.diffusion_type == 'beatgans':
-                tmp += f'-beatgans-gen{self.beatgans_gen_type.value}'
-                if self.beta_scheduler != 'linear':
-                    tmp += f'-beta{self.beta_scheduler}'
-                if self.beatgans_model_mean_type != ModelMeanType.eps:
-                    tmp += f'-pred{self.beatgans_model_mean_type.value}'
-                if self.beatgans_loss_type != LossType.mse:
-                    tmp += f'-loss{self.beatgans_loss_type.value}'
-                    if self.beatgans_loss_type == LossType.mse_var_weighted:
-                        tmp += f'{self.beatgans_model_mse_weight_type.value}'
-                else:
-                    if self.beatgans_model_mean_type == ModelMeanType.start_x:
-                        tmp += f'-weight{self.beatgans_xstart_weight_type.value}'
-                if self.beatgans_model_var_type != ModelVarType.fixed_large:
-                    tmp += f'-var{self.beatgans_model_var_type.value}'
-
-        if self.train_mode.use_latent_net():
-            # latent diffusion configs
-            tmp += f'_latentddpm-Tgen{self.latent_T_eval}'
-            if self.latent_beta_scheduler != 'linear':
-                tmp += f'-beta{self.latent_beta_scheduler}'
-            tmp += f'-gen{self.latent_gen_type.value}'
-            if self.latent_model_mean_type != ModelMeanType.eps:
-                tmp += f'-pred{self.latent_model_mean_type.value}'
-            if self.latent_loss_type != LossType.mse:
-                tmp += f'-loss{self.latent_loss_type.value}'
-                if self.latent_loss_type == LossType.mse_var_weighted:
-                    tmp += f'{self.latent_model_mse_weight_type.value}'
-            else:
-                if self.latent_model_mean_type == ModelMeanType.start_x:
-                    tmp += f'-weight{self.latent_xstart_weight_type.value}'
-            if self.latent_model_var_type != ModelVarType.fixed_large:
-                tmp += f'-var{self.latent_model_var_type.value}'
-
-        if self.train_mode.is_latent_diffusion():
-            if self.latent_znormalize:
-                tmp += '-znorm'
-            if self.latent_clip_sample:
-                tmp += '-clip'
-            if self.latent_unit_normalize:
-                tmp += '-unit'
-
-        if self.ema_decay != 0.9999 and not self.train_mode.is_manipulate():
-            tmp += f'-ema{self.ema_decay}'
-
-        if self.fp16:
-            tmp += '_fp16'
-
-        if self.pretrain is not None:
-            tmp += f'_pt{self.pretrain.name}'
-
-        if self.continue_from is not None:
-            tmp += f'_contd{self.continue_from.name}'
-
-        names.append(tmp)
-        names.append(self.model_conf.name)
-        return '/'.join(names) + self.postfix
+    # @property
+    # def name(self):
+    #     # self.make_model_conf()
+    #     raise NotImplementedError()
 
     def scale_up_gpus(self, num_gpus, num_nodes=1):
         self.eval_ema_every_samples *= num_gpus * num_nodes
