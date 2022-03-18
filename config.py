@@ -202,11 +202,6 @@ class TrainConfig(BaseConfig):
         self.batch_size_eval = self.batch_size_eval or self.batch_size
         self.data_val_name = self.data_val_name or self.data_name
 
-    # @property
-    # def name(self):
-    #     # self.make_model_conf()
-    #     raise NotImplementedError()
-
     def scale_up_gpus(self, num_gpus, num_nodes=1):
         self.eval_ema_every_samples *= num_gpus * num_nodes
         self.eval_every_samples *= num_gpus * num_nodes
@@ -253,19 +248,7 @@ class TrainConfig(BaseConfig):
         return f'{self.work_cache_dir}/gen_images/{self.name}'
 
     def _make_diffusion_conf(self, T=None):
-        if self.diffusion_type == 'default':
-            assert T == self.T
-            assert self.beta_scheduler == 'linear'
-            return DiffusionDefaultConfig(beta_1=self.def_beta_1,
-                                          beta_T=self.def_beta_T,
-                                          T=self.T,
-                                          img_size=self.img_size,
-                                          mean_type=self.def_mean_type,
-                                          var_type=self.def_var_type,
-                                          model_type=self.model_type,
-                                          kl_coef=self.kl_coef,
-                                          fp16=self.fp16)
-        elif self.diffusion_type == 'beatgans':
+        if self.diffusion_type == 'beatgans':
             # can use T < self.T for evaluation
             # follows the guided-diffusion repo conventions
             # t's are evenly spaced
@@ -326,15 +309,7 @@ class TrainConfig(BaseConfig):
 
     @property
     def model_out_channels(self):
-        if self.diffusion_type == 'beatgans':
-            if self.beatgans_model_var_type in [
-                    ModelVarType.learned, ModelVarType.learned_range
-            ]:
-                return 6
-            else:
-                return 3
-        else:
-            return 3
+        return 3
 
     def make_T_sampler(self):
         if self.T_sampler == 'uniform':
@@ -373,42 +348,10 @@ class TrainConfig(BaseConfig):
             return Horse_lmdb(path=path or self.data_path,
                               image_size=self.img_size,
                               **kwargs)
-        elif self.data_name == 'celebalmdb':
-            return CelebAlmdb(path=path or self.data_path,
-                              image_size=self.img_size,
-                              original_resolution=None,
-                              crop_d2c=True,
-                              **kwargs)
-        elif self.data_name == 'celebaalignlmdb':
-            return CelebAlmdb(path=path or self.data_path,
-                              image_size=self.img_size,
-                              **kwargs)
-
-        elif self.data_name == 'celebahq':
-            return CelebHQLMDB(path=path or self.data_path,
-                               image_size=self.img_size,
-                               **kwargs)
         else:
             return ImageDataset(folder=path or self.data_path,
                                 image_size=self.img_size,
                                 **kwargs)
-
-    def make_test_dataset(self, **kwargs):
-        if self.data_val_name == 'ffhqlmdbsplit256':
-            print('test on ffhq split')
-            return FFHQlmdb(path=data_paths['ffhqlmdbsplit256'][0],
-                            original_resolution=256,
-                            image_size=self.img_size,
-                            split='test',
-                            **kwargs)
-        elif self.data_val_name == 'celebhq':
-            print('test on celebhq')
-            return CelebHQLMDB(path=data_paths['celebahq'][0],
-                               original_resolution=256,
-                               image_size=self.img_size,
-                               **kwargs)
-        else:
-            return None
 
     def make_loader(self,
                     dataset,

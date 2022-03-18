@@ -164,13 +164,8 @@ class LitModel(pl.LightningModule):
 
         self.train_data = self.conf.make_dataset()
         print('train data:', len(self.train_data))
-        self.val_data = self.conf.make_test_dataset()
-        if self.val_data is None:
-            # val data is provided, use the train data
-            self.val_data = self.train_data
-        else:
-            # val data is provided
-            print('val data:', len(self.val_data))
+        self.val_data = self.train_data
+        print('val data:', len(self.val_data))
 
     def _train_dataloader(self, drop_last=True):
         """
