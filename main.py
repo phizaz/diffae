@@ -3,12 +3,16 @@ from run_latent_templates import bedroom128_autoenc_latent, celeba64d2c_autoenc_
 from run_templates import *
 
 if __name__ == '__main__':
-    gpus = [1]
+    gpus = [0, 1, 2, 3]
 
-    conf = celeba64d2c_autoenc()
-    conf.batch_size = 32
-    conf.name = 'tmp'
-    train(conf, gpus)
+    # conf = celeba64d2c_autoenc()
+    # conf.batch_size = 32
+    # conf.name = 'tmp'
+    # train(conf, gpus)
+
+    conf = ffhq128_autoenc_latent()
+    conf.eval_programs = ['fid(10,10)']
+    train(conf, gpus=gpus, mode='eval')
 
     # conf = horse128_cosine_autoenc_thinner_deep_morech()
     # conf.net_beatgans_resnet_use_inlayers_cond = True

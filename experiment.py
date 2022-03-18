@@ -751,18 +751,6 @@ class LitModel(pl.LightningModule):
                             'conds_mean': conds_mean,
                             'conds_std': conds_std,
                         }, save_path)
-        """
-        "interpolation" = FID of the 0.5 interpolated images between random pairs
-        This is not used in the paper.
-        """
-        if 'interpolation' in self.conf.eval_programs:
-            print('evaluating interpolation')
-            conf = self.conf.clone()
-            conf.eval_num_images = 50_000
-            score = evaluate_interpolate_fid(self.eval_sampler, self.ema_model,
-                                             conf, self.device,
-                                             self.train_data, self.val_data)
-            self.log('fid_interp', score)
 
         # evals those "fidXX"
         """

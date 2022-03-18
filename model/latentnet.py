@@ -111,11 +111,10 @@ class MLPSkipNet(nn.Module):
         cond = self.time_embed(t)
         h = x
         for i in range(len(self.layers)):
-            res = h
             if i in self.conf.skip_layers:
                 # injecting input into the hidden layers
                 h = torch.cat([h, x], dim=1)
-            h = self.layers[i].forward(x=h, cond=cond, res=res)
+            h = self.layers[i].forward(x=h, cond=cond)
         h = self.last_act(h)
         return LatentNetReturn(h)
 
@@ -126,10 +125,10 @@ class MLPLNAct(nn.Module):
         in_channels: int,
         out_channels: int,
         norm: bool,
-        activation: Activation,
         use_cond: bool,
+        activation: Activation,
         cond_channels: int,
-        condition_bias: float,
+        condition_bias: float = 0,
         dropout: float = 0,
     ):
         super().__init__()
@@ -139,8 +138,9 @@ class MLPLNAct(nn.Module):
 
         self.linear = nn.Linear(in_channels, out_channels)
         self.act = activation.get_act()
-        self.linear_emb = nn.Linear(cond_channels, out_channels)
-        self.cond_layers = nn.Sequential(self.act, self.linear_emb)
+        if self.use_cond:
+            self.linear_emb = nn.Linear(cond_channels, out_channels)
+            self.cond_layers = nn.Sequential(self.act, self.linear_emb)
         if norm:
             self.norm = nn.LayerNorm(out_channels)
         else:
@@ -172,7 +172,7 @@ class MLPLNAct(nn.Module):
                     # leave it as default
                     pass
 
-    def forward(self, x, cond=None, res=None):
+    def forward(self, x, cond=None):
         x = self.linear(x)
         if self.use_cond:
             # (n, c) or (n, c * 2)
