@@ -8,14 +8,10 @@ def latent_diffusion_config(conf: TrainConfig):
     conf.latent_loss_type = LossType.mse
     conf.latent_model_mean_type = ModelMeanType.eps
     conf.latent_model_var_type = ModelVarType.fixed_large
-    conf.latent_model_mse_weight_type = None
-    conf.latent_xstart_weight_type = None
     conf.latent_rescale_timesteps = False
     conf.latent_clip_sample = False
     conf.latent_T_eval = 20
     conf.latent_znormalize = True
-    conf.latent_detach = True
-    conf.latent_unit_normalize = False
     conf.total_samples = 96_000_000
     conf.sample_every_samples = 400_000
     conf.eval_every_samples = 20_000_000

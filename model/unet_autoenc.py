@@ -15,37 +15,10 @@ class BeatGANsAutoencConfig(BeatGANsUNetConfig):
     enc_out_channels: int = 512
     enc_attn_resolutions: Tuple[int] = None
     enc_pool: str = 'depthconv'
-    enc_pool_tail_layer: int = None
     enc_num_res_block: int = 2
     enc_channel_mult: Tuple[int] = None
     enc_grad_checkpoint: bool = False
     latent_net_conf: MLPSkipNetConfig = None
-
-    @property
-    def name(self):
-        name = super().name
-        name = name.replace('netbeatgans', 'autoencbeatgans')
-
-        name += f'-pool{self.enc_pool}'
-        if self.enc_pool == 'adaptivenonzerotail':
-            name += f'-tail{self.enc_pool_tail_layer}'
-        name += f'-ch{self.enc_out_channels}'
-        if self.enc_num_res_block != 2:
-            name += f'-resblk{self.enc_num_res_block}'
-        if self.enc_channel_mult is not None:
-            name += '-encch(' + ','.join(
-                str(x) for x in self.enc_channel_mult) + ')'
-        if self.enc_attn_resolutions is not None:
-            name += '-encatt(' + ','.join(
-                str(x) for x in self.enc_attn_resolutions) + ')'
-
-        name += f'/timestylesep'
-        name += f'-identity'
-
-        if self.latent_net_conf is not None:
-            name += f'-latent{self.latent_net_conf.name}'
-
-        return name
 
     def make_model(self):
         return BeatGANsAutoencModel(self)
@@ -82,7 +55,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             resblock_updown=conf.resblock_updown,
             use_new_attention_order=conf.use_new_attention_order,
             pool=conf.enc_pool,
-            pool_tail_layer=conf.enc_pool_tail_layer,
         ).make_model()
 
         if conf.latent_net_conf is not None:

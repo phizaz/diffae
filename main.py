@@ -3,7 +3,12 @@ from run_latent_templates import bedroom128_autoenc_latent, celeba64d2c_autoenc_
 from run_templates import *
 
 if __name__ == '__main__':
-    gpus = [3]
+    gpus = [1]
+
+    conf = celeba64d2c_autoenc()
+    conf.batch_size = 32
+    conf.name = 'tmp'
+    train(conf, gpus)
 
     # conf = horse128_cosine_autoenc_thinner_deep_morech()
     # conf.net_beatgans_resnet_use_inlayers_cond = True
@@ -42,16 +47,16 @@ if __name__ == '__main__':
     # conf = ffhq256_autoenc_latent()
     # conf = cls_ffhq128_all()
     # conf = cls_ffhq256_all()
-    
-    from shutil import copy
 
-    src = f'logs-cls/{conf.name}/last.ckpt' 
-    tgt = f'checkpoints/ffhq256_autoenc_cls/last.ckpt'
-    if not os.path.exists(os.path.dirname(tgt)):
-        os.makedirs(os.path.dirname(tgt))
-    print('copying ..')
-    print(src, tgt)
-    copy(src, tgt)
+    # from shutil import copy
+
+    # src = f'logs-cls/{conf.name}/last.ckpt'
+    # tgt = f'checkpoints/ffhq256_autoenc_cls/last.ckpt'
+    # if not os.path.exists(os.path.dirname(tgt)):
+    #     os.makedirs(os.path.dirname(tgt))
+    # print('copying ..')
+    # print(src, tgt)
+    # copy(src, tgt)
 
     # conf.batch_size = 8
     # conf = pretrain_ffhq64_autoenc48M()

@@ -217,6 +217,62 @@ def d2c_crop():
     return Crop(x1, x2, y1, y2)
 
 
+class CelebAlmdb(Dataset):
+    """
+    also supports for d2c crop.
+    """
+    def __init__(self,
+                 path,
+                 image_size,
+                 original_resolution=128,
+                 split=None,
+                 as_tensor: bool = True,
+                 do_augment: bool = True,
+                 do_normalize: bool = True,
+                 crop_d2c: bool = False,
+                 **kwargs):
+        self.original_resolution = original_resolution
+        self.data = BaseLMDB(path, original_resolution, zfill=7)
+        self.length = len(self.data)
+        self.crop_d2c = crop_d2c
+
+        if split is None:
+            self.offset = 0
+        else:
+            raise NotImplementedError()
+
+        if crop_d2c:
+            transform = [
+                d2c_crop(),
+                transforms.Resize(image_size),
+            ]
+        else:
+            transform = [
+                transforms.Resize(image_size),
+                transforms.CenterCrop(image_size),
+            ]
+
+        if do_augment:
+            transform.append(transforms.RandomHorizontalFlip())
+        if as_tensor:
+            transform.append(transforms.ToTensor())
+        if do_normalize:
+            transform.append(
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
+        self.transform = transforms.Compose(transform)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, index):
+        assert index < self.length
+        index = index + self.offset
+        img = self.data[index]
+        if self.transform is not None:
+            img = self.transform(img)
+        return {'img': img, 'index': index}
+
+
 class Horse_lmdb(Dataset):
     def __init__(self,
                  path=os.path.expanduser('datasets/horse256.lmdb'),
@@ -534,16 +590,15 @@ class CelebHQAttrDataset(Dataset):
     ]
     cls_to_id = {v: k for k, v in enumerate(id_to_cls)}
 
-    def __init__(
-            self,
-            path=os.path.expanduser('datasets/celebahq256.lmdb'),
-            image_size=None,
-            attr_path=os.path.expanduser(
-                'datasets/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
-            original_resolution=256,
-            do_augment: bool = False,
-            do_transform: bool = True,
-            do_normalize: bool = True):
+    def __init__(self,
+                 path=os.path.expanduser('datasets/celebahq256.lmdb'),
+                 image_size=None,
+                 attr_path=os.path.expanduser(
+                     'datasets/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
+                 original_resolution=256,
+                 do_augment: bool = False,
+                 do_transform: bool = True,
+                 do_normalize: bool = True):
         super().__init__()
         self.image_size = image_size
         self.data = BaseLMDB(path, original_resolution, zfill=5)

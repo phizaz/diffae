@@ -376,8 +376,6 @@ class LitModel(pl.LightningModule):
                 """
                 # diffusion on the latent
                 t, weight = self.T_sampler.sample(len(cond), cond.device)
-                if self.conf.latent_unit_normalize:
-                    cond = F.normalize(cond, dim=1)
                 latent_losses = self.latent_sampler.training_losses(
                     model=self.model.latent_net, x_start=cond, t=t)
                 # train only do the latent diffusion

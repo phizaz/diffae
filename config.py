@@ -72,33 +72,24 @@ class TrainConfig(BaseConfig):
     autoenc_mid_attn: bool = True
     batch_size: int = 16
     batch_size_eval: int = None
-    beatgans_gen_type: GenerativeType = GenerativeType.ddpm
+    beatgans_gen_type: GenerativeType = GenerativeType.ddim
     beatgans_loss_type: LossType = LossType.mse
     beatgans_model_mean_type: ModelMeanType = ModelMeanType.eps
     beatgans_model_var_type: ModelVarType = ModelVarType.fixed_large
-    beatgans_model_mse_weight_type: MSEWeightType = MSEWeightType.var
-    beatgans_xstart_weight_type: XStartWeightType = XStartWeightType.uniform
     beatgans_rescale_timesteps: bool = False
     latent_infer_path: str = None
     latent_znormalize: bool = False
-    latent_gen_type: GenerativeType = GenerativeType.ddpm
+    latent_gen_type: GenerativeType = GenerativeType.ddim
     latent_loss_type: LossType = LossType.mse
     latent_model_mean_type: ModelMeanType = ModelMeanType.eps
     latent_model_var_type: ModelVarType = ModelVarType.fixed_large
-    latent_model_mse_weight_type: MSEWeightType = MSEWeightType.var
-    latent_xstart_weight_type: XStartWeightType = XStartWeightType.uniform
     latent_rescale_timesteps: bool = False
     latent_T_eval: int = 1_000
     latent_clip_sample: bool = False
     latent_beta_scheduler: str = 'linear'
     beta_scheduler: str = 'linear'
-    data_name: str = 'ffhq'
+    data_name: str = ''
     data_val_name: str = None
-    def_beta_1: float = 1e-4
-    def_beta_T: float = 0.02
-    def_mean_type: str = 'epsilon'
-    def_var_type: str = 'fixedlarge'
-    device: str = 'cuda:0'
     diffusion_type: str = None
     dropout: float = 0.1
     ema_decay: float = 0.9999
@@ -109,10 +100,7 @@ class TrainConfig(BaseConfig):
     fp16: bool = False
     grad_clip: float = 1
     img_size: int = 64
-    kl_coef: float = None
-    chamfer_coef: float = 1
-    chamfer_type: ChamferType = ChamferType.chamfer
-    lr: float = 0.0002
+    lr: float = 0.0001
     optimizer: OptimizerType = OptimizerType.adam
     weight_decay: float = 0
     model_conf: ModelConfig = None
@@ -124,49 +112,32 @@ class TrainConfig(BaseConfig):
     net_beatgans_embed_channels: int = 512
     net_resblock_updown: bool = True
     net_enc_use_time: bool = False
-    net_enc_pool: str = 'depthconv'
-    net_enc_pool_tail_layer: int = None
+    net_enc_pool: str = 'adaptivenonzero'
     net_beatgans_gradient_checkpoint: bool = False
     net_beatgans_resnet_two_cond: bool = False
     net_beatgans_resnet_use_zero_module: bool = True
     net_beatgans_resnet_scale_at: ScaleAt = ScaleAt.after_norm
     net_beatgans_resnet_cond_channels: int = None
-    mmd_alphas: Tuple[float] = (0.5, )
-    mmd_coef: float = 0.1
-    latent_detach: bool = True
-    latent_unit_normalize: bool = False
     net_ch_mult: Tuple[int] = None
     net_ch: int = 64
     net_enc_attn: Tuple[int] = None
     net_enc_k: int = None
-    net_enc_name: EncoderName = EncoderName.v1
     # number of resblocks for the encoder (half-unet)
     net_enc_num_res_blocks: int = 2
-    net_enc_tail_depth: int = 2
     net_enc_channel_mult: Tuple[int] = None
     net_enc_grad_checkpoint: bool = False
     net_autoenc_stochastic: bool = False
     net_latent_activation: Activation = Activation.silu
-    net_latent_attn_resolutions: Tuple[int] = tuple()
-    net_latent_blocks: int = None
     net_latent_channel_mult: Tuple[int] = (1, 2, 4)
-    net_latent_cond_both: bool = True
     net_latent_condition_bias: float = 0
     net_latent_dropout: float = 0
     net_latent_layers: int = None
     net_latent_net_last_act: Activation = Activation.none
     net_latent_net_type: LatentNetType = LatentNetType.none
     net_latent_num_hid_channels: int = 1024
-    net_latent_num_res_blocks: int = 2
     net_latent_num_time_layers: int = 2
-    net_latent_pooling: str = 'linear'
-    net_latent_project_size: int = 4
-    net_latent_residual: bool = False
     net_latent_skip_layers: Tuple[int] = None
     net_latent_time_emb_channels: int = 64
-    net_latent_time_layer_init: bool = False
-    net_latent_unpool: str = 'conv'
-    net_latent_use_mid_attn: bool = True
     net_latent_use_norm: bool = False
     net_latent_time_last_act: bool = False
     net_num_res_blocks: int = 2
@@ -190,12 +161,11 @@ class TrainConfig(BaseConfig):
     eval_programs: Tuple[str] = None
     # if present load the checkpoint from this path instead
     eval_path: str = None
-    base_dir: str = 'logs'
+    base_dir: str = 'checkpoints'
     use_cache_dataset: bool = False
     data_cache_dir: str = os.path.expanduser('~/cache')
     work_cache_dir: str = os.path.expanduser('~/mycache')
-    # data_cache_dir: str = os.path.expanduser('/scratch/konpat')
-    # work_cache_dir: str = os.path.expanduser('/scratch/konpat')
+    # to be overridden
     name: str = ''
 
     def __post_init__(self):
@@ -265,15 +235,11 @@ class TrainConfig(BaseConfig):
                 betas=get_named_beta_schedule(self.beta_scheduler, self.T),
                 model_mean_type=self.beatgans_model_mean_type,
                 model_var_type=self.beatgans_model_var_type,
-                model_mse_weight_type=self.beatgans_model_mse_weight_type,
-                xstart_weight_type=self.beatgans_xstart_weight_type,
                 loss_type=self.beatgans_loss_type,
                 rescale_timesteps=self.beatgans_rescale_timesteps,
                 use_timesteps=space_timesteps(num_timesteps=self.T,
                                               section_counts=section_counts),
                 fp16=self.fp16,
-                mmd_alphas=self.mmd_alphas,
-                mmd_coef=self.mmd_coef,
             )
         else:
             raise NotImplementedError()
@@ -298,8 +264,6 @@ class TrainConfig(BaseConfig):
             betas=get_named_beta_schedule(self.latent_beta_scheduler, self.T),
             model_mean_type=self.latent_model_mean_type,
             model_var_type=self.latent_model_var_type,
-            model_mse_weight_type=self.latent_model_mse_weight_type,
-            xstart_weight_type=self.latent_xstart_weight_type,
             loss_type=self.latent_loss_type,
             rescale_timesteps=self.latent_rescale_timesteps,
             use_timesteps=space_timesteps(num_timesteps=self.T,
@@ -348,10 +312,15 @@ class TrainConfig(BaseConfig):
             return Horse_lmdb(path=path or self.data_path,
                               image_size=self.img_size,
                               **kwargs)
+        elif self.data_name == 'celebalmdb':
+            # always use d2c crop
+            return CelebAlmdb(path=path or self.data_path,
+                              image_size=self.img_size,
+                              original_resolution=None,
+                              crop_d2c=True,
+                              **kwargs)
         else:
-            return ImageDataset(folder=path or self.data_path,
-                                image_size=self.img_size,
-                                **kwargs)
+            raise NotImplementedError()
 
     def make_loader(self,
                     dataset,
@@ -431,8 +400,6 @@ class TrainConfig(BaseConfig):
                     dropout=self.net_latent_dropout,
                     last_act=self.net_latent_net_last_act,
                     num_time_layers=self.net_latent_num_time_layers,
-                    time_layer_init=self.net_latent_time_layer_init,
-                    residual=self.net_latent_residual,
                     time_last_act=self.net_latent_time_last_act,
                 )
             else:
@@ -447,7 +414,6 @@ class TrainConfig(BaseConfig):
                 embed_channels=self.net_beatgans_embed_channels,
                 enc_out_channels=self.style_ch,
                 enc_pool=self.net_enc_pool,
-                enc_pool_tail_layer=self.net_enc_pool_tail_layer,
                 enc_num_res_block=self.net_enc_num_res_blocks,
                 enc_channel_mult=self.net_enc_channel_mult,
                 enc_grad_checkpoint=self.net_enc_grad_checkpoint,

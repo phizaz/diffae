@@ -368,22 +368,7 @@ class BeatGANsEncoderConfig(BaseConfig):
     num_head_channels: int = -1
     resblock_updown: bool = False
     use_new_attention_order: bool = False
-    pool: str = "adaptive"
-    pool_tail_layer: int = None
-
-    @property
-    def name(self):
-        name = f'encoder-ch{self.model_channels}('
-        name += ','.join(str(x) for x in self.channel_mult) + ')'
-        name += f'-blk{self.num_res_blocks}'
-        name += f'-attn{self.num_heads}(' + ','.join(
-            str(x) for x in self.attention_resolutions) + ')'
-        name += f'-dropout{self.dropout}'
-        if self.use_time_condition:
-            name += '-time'
-        if self.resblock_updown:
-            name += '-residue'
-        return name
+    pool: str = 'adaptivenonzero'
 
     def make_model(self):
         return BeatGANsEncoderModel(self)
@@ -497,80 +482,13 @@ class BeatGANsEncoderModel(nn.Module):
             ).make_model(),
         )
         self._feature_size += ch
-        if conf.pool == "adaptive":
-            self.out = nn.Sequential(
-                normalization(ch),
-                nn.SiLU(),
-                nn.AdaptiveAvgPool2d((1, 1)),
-                zero_module(conv_nd(conf.dims, ch, conf.out_channels, 1)),
-                nn.Flatten(),
-            )
-        elif conf.pool == "adaptivenonzero":
+        if conf.pool == "adaptivenonzero":
             self.out = nn.Sequential(
                 normalization(ch),
                 nn.SiLU(),
                 nn.AdaptiveAvgPool2d((1, 1)),
                 conv_nd(conf.dims, ch, conf.out_channels, 1),
                 nn.Flatten(),
-            )
-        elif conf.pool == "adaptivenonzerotail":
-            tail = []
-            for i in range(conf.pool_tail_layer):
-                tail.append(normalization(conf.out_channels))
-                tail.append(nn.SiLU())
-                tail.append(nn.Linear(conf.out_channels, conf.out_channels))
-
-            self.out = nn.Sequential(
-                normalization(ch),
-                nn.SiLU(),
-                nn.AdaptiveAvgPool2d((1, 1)),
-                conv_nd(conf.dims, ch, conf.out_channels, 1),
-                nn.Flatten(),
-                *tail,
-            )
-        elif conf.pool == 'depthconv':
-            assert conf.out_channels >= ch
-            self.out = nn.Sequential(
-                normalization(ch),
-                nn.SiLU(),
-                nn.Conv2d(ch,
-                          conf.out_hid_channels,
-                          kernel_size=resolution,
-                          groups=ch),
-                nn.Conv2d(conf.out_hid_channels,
-                          conf.out_channels,
-                          kernel_size=1),
-                nn.Flatten(),
-            )
-        elif conf.pool == 'depthconv2048':
-            assert conf.out_channels >= ch
-            self.out = nn.Sequential(
-                normalization(ch),
-                nn.SiLU(),
-                nn.Conv2d(ch, 2048, kernel_size=resolution, groups=ch),
-                nn.Conv2d(2048, conf.out_channels, kernel_size=1),
-                nn.Flatten(),
-            )
-        elif conf.pool == "attention":
-            assert conf.num_head_channels != -1
-            self.out = nn.Sequential(
-                normalization(ch),
-                nn.SiLU(),
-                AttentionPool2d((conf.image_size // ds), ch,
-                                conf.num_head_channels, conf.out_channels),
-            )
-        elif conf.pool == "spatial":
-            self.out = nn.Sequential(
-                nn.Linear(self._feature_size, 2048),
-                nn.ReLU(),
-                nn.Linear(2048, conf.out_channels),
-            )
-        elif conf.pool == "spatial_v2":
-            self.out = nn.Sequential(
-                nn.Linear(self._feature_size, 2048),
-                normalization(2048),
-                nn.SiLU(),
-                nn.Linear(2048, conf.out_channels),
             )
         else:
             raise NotImplementedError(f"Unexpected {conf.pool} pooling")

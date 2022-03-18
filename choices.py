@@ -102,11 +102,6 @@ class ModelType(Enum):
         return self in [ModelType.ddpm]
 
 
-class ChamferType(Enum):
-    chamfer = 'chamfer'
-    stochastic = 'stochastic'
-
-
 class ModelName(Enum):
     """
     List of all supported model classes
@@ -116,24 +111,12 @@ class ModelName(Enum):
     beatgans_autoenc = 'beatgans_autoenc'
 
 
-class EncoderName(Enum):
-    """
-    List of all encoders for ddpm models
-    """
-
-    v1 = 'v1'
-    v2 = 'v2'
-
-
 class ModelMeanType(Enum):
     """
     Which type of output the model predicts.
     """
 
-    prev_x = 'x_prev'  # the model predicts x_{t-1}
-    start_x = 'x_start'  # the model predicts x_0
     eps = 'eps'  # the model predicts epsilon
-    scaled_start_x = 'scaledxstart'  # the model predicts sqrt(alphacum) x_0
 
 
 class ModelVarType(Enum):
@@ -144,59 +127,15 @@ class ModelVarType(Enum):
     values between FIXED_SMALL and FIXED_LARGE, making its job easier.
     """
 
-    # learned directly
-    learned = 'learned'
     # posterior beta_t
     fixed_small = 'fixed_small'
     # beta_t
     fixed_large = 'fixed_large'
-    # predict values between FIXED_SMALL and FIXED_LARGE, making its job easier
-    learned_range = 'learned_range'
 
 
 class LossType(Enum):
     mse = 'mse'  # use raw MSE loss (and KL when learning variances)
     l1 = 'l1'
-    # mse weighted by the variance, somewhat like in kl
-    mse_var_weighted = 'mse_weighted'
-    mse_rescaled = 'mse_rescaled'  # use raw MSE loss (with RESCALED_KL when learning variances)
-    kl = 'kl'  # use the variational lower-bound
-    kl_rescaled = 'kl_rescaled'  # like KL, but rescale to estimate the full VLB
-
-    def is_vb(self):
-        return self == LossType.kl or self == LossType.kl_rescaled
-
-
-class MSEWeightType(Enum):
-    # use the ddpm's default variance (either analytical or learned)
-    var = 'var'
-    # optimal variance by deriving the min kl per image (based on mse of epsilon)
-    # = small sigma + mse
-    var_min_kl_img = 'varoptimg'
-    # optimal variance regradless of the posterior sigmas
-    # = mse only
-    var_min_kl_mse_img = 'varoptmseimg'
-    # same as the above but is based on mse of mu of xprev
-    var_min_kl_xprev_img = 'varoptxprevimg'
-
-
-class XStartWeightType(Enum):
-    # weights for the mse of the xstart
-    # unweighted x start
-    uniform = 'uniform'
-    # reciprocal 1 - alpha_bar
-    reciprocal_alphabar = 'recipalpha'
-    # same as the above but not exceeding mse = 1
-    reciprocal_alphabar_safe = 'recipalphasafe'
-    # turning x0 into eps as use the mse(eps)
-    eps = 'eps'
-    # the same as above but not turning into eps
-    eps2 = 'eps2'
-    # same as the above but not exceeding mse = 1
-    eps2_safe = 'eps2safe'
-    eps_huber = 'epshuber'
-    unit_mse_x0 = 'unitmsex0'
-    unit_mse_eps = 'unitmseeps'
 
 
 class GenerativeType(Enum):

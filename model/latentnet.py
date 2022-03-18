@@ -40,34 +40,7 @@ class MLPSkipNetConfig(BaseConfig):
     dropout: float = 0
     last_act: Activation = Activation.none
     num_time_layers: int = 2
-    time_layer_init: bool = False
-    time_is_int: bool = True
-    residual: bool = False
     time_last_act: bool = False
-
-    @property
-    def name(self):
-        name = f'mlp-ch{self.num_channels}-hid{self.num_hid_channels}-{self.num_layers}layers'
-        name += '-skip(' + ','.join(str(x) for x in self.skip_layers) + ')'
-        name += f'-act{self.activation.value}'
-        if self.use_norm:
-            name += '-norm'
-        name += f'-emb{self.num_time_emb_channels}normmod'
-        if self.num_time_layers != 2:
-            name += f'-timel{self.num_time_layers}'
-        if self.time_layer_init:
-            name += '-timinit'
-        if self.condition_bias > 0:
-            name += f'-bias{self.condition_bias}'
-        if self.dropout > 0:
-            name += f'-dropout{self.dropout}'
-        if self.last_act != Activation.none:
-            name += f'-lastact{self.last_act.value}'
-        if self.residual:
-            name += '-res'
-        if self.time_last_act:
-            name += '-tlastact'
-        return name
 
     def make_model(self):
         return MLPSkipNet(self)
@@ -83,11 +56,6 @@ class MLPSkipNet(nn.Module):
         super().__init__()
         self.conf = conf
 
-        # self.time_embed = nn.Sequential(
-        #     nn.Linear(conf.num_time_emb_channels, conf.num_channels),
-        #     conf.activation.get_act(),
-        #     nn.Linear(conf.num_channels, conf.num_channels),
-        # )
         layers = []
         for i in range(conf.num_time_layers):
             if i == 0:
@@ -101,11 +69,6 @@ class MLPSkipNet(nn.Module):
                 layers.append(conf.activation.get_act())
         self.time_embed = nn.Sequential(*layers)
 
-        if conf.time_layer_init:
-            for each in self.time_embed.modules():
-                if isinstance(each, nn.Linear):
-                    init.kaiming_normal_(each.weight)
-
         self.layers = nn.ModuleList([])
         for i in range(conf.num_layers):
             if i == 0:
@@ -114,21 +77,18 @@ class MLPSkipNet(nn.Module):
                 cond = True
                 a, b = conf.num_channels, conf.num_hid_channels
                 dropout = conf.dropout
-                residual = False
             elif i == conf.num_layers - 1:
                 act = Activation.none
                 norm = False
                 cond = False
                 a, b = conf.num_hid_channels, conf.num_channels
                 dropout = 0
-                residual = False
             else:
                 act = conf.activation
                 norm = conf.use_norm
                 cond = True
                 a, b = conf.num_hid_channels, conf.num_hid_channels
                 dropout = conf.dropout
-                residual = conf.residual
 
             if i in conf.skip_layers:
                 a += conf.num_channels
@@ -143,13 +103,11 @@ class MLPSkipNet(nn.Module):
                     use_cond=cond,
                     condition_bias=conf.condition_bias,
                     dropout=dropout,
-                    residual=residual,
                 ))
         self.last_act = conf.last_act.get_act()
 
     def forward(self, x, t, **kwargs):
-        if self.conf.time_is_int:
-            t = timestep_embedding(t, self.conf.num_time_emb_channels)
+        t = timestep_embedding(t, self.conf.num_time_emb_channels)
         cond = self.time_embed(t)
         h = x
         for i in range(len(self.layers)):
@@ -173,12 +131,10 @@ class MLPLNAct(nn.Module):
         cond_channels: int,
         condition_bias: float,
         dropout: float = 0,
-        residual: bool = False,
     ):
         super().__init__()
         self.activation = activation
         self.condition_bias = condition_bias
-        self.residual = residual
         self.use_cond = use_cond
 
         self.linear = nn.Linear(in_channels, out_channels)
@@ -234,6 +190,4 @@ class MLPLNAct(nn.Module):
             x = self.norm(x)
         x = self.act(x)
         x = self.dropout(x)
-        if self.residual:
-            x = (x + res) / math.sqrt(2)
         return x

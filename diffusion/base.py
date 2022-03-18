@@ -29,13 +29,9 @@ class GaussianDiffusionBeatGansConfig(BaseConfig):
     model_type: ModelType
     model_mean_type: ModelMeanType
     model_var_type: ModelVarType
-    model_mse_weight_type: MSEWeightType
     loss_type: LossType
     rescale_timesteps: bool
     fp16: bool
-    xstart_weight_type: XStartWeightType
-    mmd_alphas: Tuple[float] = None
-    mmd_coef: float = None
     train_pred_xstart_detach: bool = True
 
     def make_sampler(self):
@@ -128,25 +124,8 @@ class GaussianDiffusionBeatGans:
 
         terms = {'x_t': x_t}
 
-        if self.loss_type == LossType.kl or self.loss_type == LossType.kl_rescaled:
-            # vb_terms_pbd will not supply x_start to the model automatically
-            model_kwargs['x_start'] = x_start
-            out = self._vb_terms_bpd(
-                model=model,
-                x_start=x_start,
-                x_t=x_t,
-                t=t,
-                clip_denoised=False,
-                model_kwargs=model_kwargs,
-            )
-            terms["loss"] = out["output"]
-            model_forward = out['model_forward']
-            if self.loss_type == LossType.kl_rescaled:
-                terms["loss"] *= self.num_timesteps
-        elif self.loss_type in [
+        if self.loss_type in [
                 LossType.mse,
-                LossType.mse_rescaled,
-                LossType.mse_var_weighted,
                 LossType.l1,
         ]:
             with autocast(self.conf.fp16):
@@ -171,179 +150,21 @@ class GaussianDiffusionBeatGans:
 
             # model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
 
-            if self.model_var_type in [
-                    ModelVarType.learned,
-                    ModelVarType.learned_range,
-            ]:
-                # learned variance requires output channels = 6
-                B, C = x_t.shape[:2]
-                assert model_output.shape == (B, C * 2, *x_t.shape[2:])
-                model_output, model_var_values = th.split(model_output,
-                                                          C,
-                                                          dim=1)
-                # Learn the variance using the variational bound, but don't let
-                # it affect our mean prediction.
-                frozen_out = th.cat([model_output.detach(), model_var_values],
-                                    dim=1)
-                terms["vb"] = self._vb_terms_bpd(
-                    # model=lambda *args, r=frozen_out: r,
-                    # a dummy model always return this value
-                    model=DummyModel(pred=frozen_out),
-                    x_start=x_start,
-                    x_t=x_t,
-                    t=t,
-                    clip_denoised=False,
-                )["output"]
-                if self.loss_type == LossType.mse_rescaled:
-                    # Divide by 1000 for equivalence with initial implementation.
-                    # Without a factor of 1/1000, the VB term hurts the MSE term.
-                    terms["vb"] *= self.num_timesteps / 1000.0
-
             target_types = {
-                ModelMeanType.prev_x:
-                self.q_posterior_mean_variance(x_start=x_start, x_t=x_t,
-                                               t=t)[0],  # [0] = mean
-                ModelMeanType.start_x:
-                x_start,
-                ModelMeanType.eps:
-                noise,
-                ModelMeanType.scaled_start_x:
-                noise,
+                ModelMeanType.eps: noise,
             }
             target = target_types[self.model_mean_type]
             assert model_output.shape == target.shape == x_start.shape
 
-            if self.loss_type in [LossType.mse, LossType.mse_rescaled]:
-                if self.model_mean_type == ModelMeanType.start_x:
-                    if self.conf.xstart_weight_type == XStartWeightType.uniform:
-                        terms["mse"] = mean_flat((target - model_output)**2)
-                    elif self.conf.xstart_weight_type in [
-                            XStartWeightType.reciprocal_alphabar,
-                            XStartWeightType.reciprocal_alphabar_safe
-                    ]:
-                        # this weight is the same as mse(epsilon) + mse(x_start)
-                        # 1 / (1 - alphabar_t)
-                        # (n, )
-                        weight = _extract_into_tensor(
-                            1 / (1 - self.alphas_cumprod), t, t.shape)
-                        # (n, )
-                        mse = mean_flat((target - model_output)**2)
-                        if self.conf.xstart_weight_type == XStartWeightType.reciprocal_alphabar_safe:
-                            # same as the above but prevent the mse larger than 1
-                            # (n, )
-                            weight = th.min(weight, 1 / mse.detach())
-                        terms["mse"] = mse * weight
-                    elif self.conf.xstart_weight_type == XStartWeightType.eps:
-                        # turn x0 into eps and use the eps
-                        # (n, c, h, w)
-                        eps = self._predict_eps_from_xstart(
-                            x_t=x_t, t=t, pred_xstart=model_output)
-                        terms['mse'] = mean_flat((noise - eps)**2)
-                    elif self.conf.xstart_weight_type in [
-                            XStartWeightType.eps2, XStartWeightType.eps2_safe
-                    ]:
-                        mse = mean_flat((target - model_output)**2)
-                        # (n, )
-                        weight = _extract_into_tensor(
-                            1 / self.sqrt_recipm1_alphas_cumprod**2, t,
-                            t.shape)
-                        if self.conf.xstart_weight_type == XStartWeightType.eps2_safe:
-                            # same as the above but prevent the mse larger than 1
-                            # (n, )
-                            weight = th.min(weight, 1 / mse.detach())
-                        # (n, )
-                        terms['mse'] = weight * mse
-                    elif self.conf.xstart_weight_type == XStartWeightType.eps_huber:
-                        # we hope to reduce the variance when t ~ 0, when eps loss becomes unstable
-                        eps = self._predict_eps_from_xstart(
-                            x_t=x_t, t=t, pred_xstart=model_output)
-                        terms['mse'] = mean_flat(
-                            F.smooth_l1_loss(eps, noise, reduction='none'))
-                    elif self.conf.xstart_weight_type == XStartWeightType.unit_mse_x0:
-                        # scale mse to 1 always
-                        mse = mean_flat((target - model_output)**2)
-                        weight = 1 / mse.detach()
-                        terms['mse'] = mse * weight
-                    elif self.conf.xstart_weight_type == XStartWeightType.unit_mse_eps:
-                        # scale mse to 1 always
-                        eps = self._predict_eps_from_xstart(
-                            x_t=x_t, t=t, pred_xstart=model_output)
-                        mse = mean_flat((noise - eps)**2)
-                        weight = 1 / mse.detach()
-                        terms['mse'] = mse * weight
-                    else:
-                        raise NotImplementedError()
-                elif self.model_mean_type == ModelMeanType.scaled_start_x:
-                    eps = self._predict_eps_from_scaled_xstart(
-                        x_t=x_t, t=t, scaled_xstart=model_output)
-                    terms['mse'] = mean_flat((noise - eps)**2)
-                else:
+            if self.loss_type == LossType.mse:
+                if self.model_mean_type == ModelMeanType.eps:
                     # (n, c, h, w) => (n, )
                     terms["mse"] = mean_flat((target - model_output)**2)
+                else:
+                    raise NotImplementedError()
             elif self.loss_type == LossType.l1:
                 # (n, c, h, w) => (n, )
                 terms["mse"] = mean_flat((target - model_output).abs())
-            elif self.loss_type == LossType.mse_var_weighted:
-                # special mse only for the eps predicting network
-                assert self.model_mean_type == ModelMeanType.eps, 'only support this at the moment'
-                # weighted the mse with the predicted variance
-                if self.conf.model_mse_weight_type == MSEWeightType.var:
-                    # use the default ddpm's variance
-                    # don't backprop to change the variance
-                    out = self.p_mean_variance(
-                        DummyModel(pred=model_forward.pred.detach()),
-                        x_t,
-                        t,
-                        clip_denoised=False,
-                        model_kwargs=model_kwargs)
-                    # only takes the variance values
-                    # (n, c, h, w)
-                    model_var = out['variance']
-                    # per image variance, mean of the std, then pow2 back (n, )
-                    img_var = mean_flat(model_var.sqrt()).pow(2)
-                    # scale mse by 1/(2 var) (n, )
-                    terms["mse"] = mean_flat(
-                        (target - model_output)**2) / (2 * img_var)
-                elif self.conf.model_mse_weight_type == MSEWeightType.var_min_kl_img:
-                    # (n, )
-                    mse = mean_flat((target - model_output)**2)
-                    with th.no_grad():
-                        # (n, )
-                        var_min = _extract_into_tensor(self.posterior_variance,
-                                                       t, t.shape)
-                        # var optimal from min kl = var_min + mse
-                        var_optimal = var_min + mse
-                    terms['mse'] = mse / (2 * var_optimal)
-                elif self.conf.model_mse_weight_type == MSEWeightType.var_min_kl_mse_img:
-                    # (n, )
-                    mse = mean_flat((target - model_output)**2)
-                    terms['mse'] = mse / (2 * mse.detach())
-                elif self.conf.model_mse_weight_type == MSEWeightType.var_min_kl_xprev_img:
-                    # based on mu (not eps)
-                    with th.no_grad():
-                        # getting x_prev from eps based model
-                        out = self.p_mean_variance(
-                            DummyModel(pred=model_forward.pred),
-                            x_t,
-                            t,
-                            clip_denoised=False,
-                            model_kwargs=model_kwargs)
-                        # (n, c, h, w)
-                        pred_xstart = out['pred_xstart']
-                        pred_xprev = self.q_posterior_mean_variance(
-                            x_start=pred_xstart, x_t=x_t, t=t)[0]
-                        target_xprev = target_types[ModelMeanType.prev_x]
-                        # (n, )
-                        mse = mean_flat((pred_xprev - target_xprev)**2)
-                        # (n, )
-                        var_min = _extract_into_tensor(self.posterior_variance,
-                                                       t, t.shape)
-                        # var optimal from min kl = var_min + mse
-                        var_optimal = var_min + mse
-                    terms['mse'] = mean_flat(
-                        (target - model_output)**2) / (2 * var_optimal)
-                else:
-                    raise NotImplementedError()
             else:
                 raise NotImplementedError()
 
@@ -489,22 +310,8 @@ class GaussianDiffusionBeatGans:
         model_output = model_forward.pred
 
         if self.model_var_type in [
-                ModelVarType.learned, ModelVarType.learned_range
+                ModelVarType.fixed_large, ModelVarType.fixed_small
         ]:
-            assert model_output.shape == (B, C * 2, *x.shape[2:])
-            model_output, model_var_values = th.split(model_output, C, dim=1)
-            if self.model_var_type == ModelVarType.learned:
-                model_log_variance = model_var_values
-                model_variance = th.exp(model_log_variance)
-            else:
-                min_log = _extract_into_tensor(
-                    self.posterior_log_variance_clipped, t, x.shape)
-                max_log = _extract_into_tensor(np.log(self.betas), t, x.shape)
-                # The model_var_values is [-1, 1] for [min_var, max_var].
-                frac = (model_var_values + 1) / 2
-                model_log_variance = frac * max_log + (1 - frac) * min_log
-                model_variance = th.exp(model_log_variance)
-        else:
             model_variance, model_log_variance = {
                 # for fixedlarge, we set the initial (log-)variance like so
                 # to get a better decoder log likelihood.
@@ -529,26 +336,13 @@ class GaussianDiffusionBeatGans:
                 return x.clamp(-1, 1)
             return x
 
-        if self.model_mean_type == ModelMeanType.prev_x:
-            pred_xstart = process_xstart(
-                self._predict_xstart_from_xprev(x_t=x, t=t,
-                                                xprev=model_output))
-            model_mean = model_output
-        elif self.model_mean_type in [
-                ModelMeanType.start_x,
+        if self.model_mean_type in [
                 ModelMeanType.eps,
-                ModelMeanType.scaled_start_x,
         ]:
-            if self.model_mean_type == ModelMeanType.start_x:
-                pred_xstart = process_xstart(model_output)
-            elif self.model_mean_type == ModelMeanType.eps:
+            if self.model_mean_type == ModelMeanType.eps:
                 pred_xstart = process_xstart(
                     self._predict_xstart_from_eps(x_t=x, t=t,
                                                   eps=model_output))
-            elif self.model_mean_type == ModelMeanType.scaled_start_x:
-                pred_xstart = process_xstart(
-                    self._predict_xstart_from_scaled_xstart(
-                        t=t, scaled_xstart=model_output))
             else:
                 raise NotImplementedError()
             model_mean, _, _ = self.q_posterior_mean_variance(
