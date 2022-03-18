@@ -10,25 +10,20 @@ from config_base import BaseConfig
 from torch import nn
 
 from .fp16_util import convert_module_to_f16, convert_module_to_f32
-from .nn import (avg_pool_nd,
-                 checkpoint, conv_nd, linear, normalization,
+from .nn import (avg_pool_nd, conv_nd, linear, normalization,
                  timestep_embedding, torch_checkpoint, zero_module)
 
 
 class ScaleAt(Enum):
     after_norm = 'afternorm'
 
+
 class TimestepBlock(nn.Module):
     """
     Any module where forward() takes timestep embeddings as a second argument.
     """
     @abstractmethod
-    def forward(self,
-                x,
-                emb=None,
-                cond=None,
-                lateral=None,
-                stylespace_cond=None):
+    def forward(self, x, emb=None, cond=None, lateral=None):
         """
         Apply the module to `x` given `emb` timestep embeddings.
         """
@@ -39,19 +34,10 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     A sequential module that passes timestep embeddings to the children that
     support it as an extra input.
     """
-    def forward(self,
-                x,
-                emb=None,
-                cond=None,
-                lateral=None,
-                stylespace_cond=None):
+    def forward(self, x, emb=None, cond=None, lateral=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
-                x = layer(x,
-                          emb=emb,
-                          cond=cond,
-                          lateral=lateral,
-                          stylespace_cond=stylespace_cond)
+                x = layer(x, emb=emb, cond=cond, lateral=lateral)
             else:
                 x = layer(x)
         return x
@@ -197,12 +183,7 @@ class ResBlock(TimestepBlock):
                                            kernel_size,
                                            padding=padding)
 
-    def forward(self,
-                x,
-                emb=None,
-                cond=None,
-                lateral=None,
-                stylespace_cond=None):
+    def forward(self, x, emb=None, cond=None, lateral=None):
         """
         Apply the block to a Tensor, conditioned on a timestep embedding.
 
@@ -210,8 +191,7 @@ class ResBlock(TimestepBlock):
             x: input
             lateral: lateral connection from the encoder
         """
-        return torch_checkpoint(self._forward,
-                                (x, emb, cond, lateral, stylespace_cond),
+        return torch_checkpoint(self._forward, (x, emb, cond, lateral),
                                 self.conf.use_checkpoint)
 
     def _forward(
@@ -220,9 +200,6 @@ class ResBlock(TimestepBlock):
         emb=None,
         cond=None,
         lateral=None,
-        stylespace_cond=None,
-        # not used yet, just in case
-        stylespace_cond_in=None,
     ):
         """
         Args:
@@ -256,13 +233,10 @@ class ResBlock(TimestepBlock):
                 # but it doesn't get the second condition
                 # in which case, we ignore the second condition
                 # and treat as if the network has one condition
-                if stylespace_cond is not None:
-                    cond_out = stylespace_cond
+                if cond is None:
+                    cond_out = None
                 else:
-                    if cond is None:
-                        cond_out = None
-                    else:
-                        cond_out = self.cond_emb_layers(cond).type(h.dtype)
+                    cond_out = self.cond_emb_layers(cond).type(h.dtype)
 
                 if cond_out is not None:
                     while len(cond_out.shape) < len(h.shape):

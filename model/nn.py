@@ -128,24 +128,6 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     return embedding
 
 
-def checkpoint(func, inputs, params, flag):
-    """
-    Evaluate a function without caching intermediate activations, allowing for
-    reduced memory at the expense of extra compute in the backward pass.
-
-    :param func: the function to evaluate.
-    :param inputs: the argument sequence to pass to `func`.
-    :param params: a sequence of parameters `func` depends on but does not
-                   explicitly take as arguments.
-    :param flag: if False, disable gradient checkpointing.
-    """
-    if flag:
-        args = tuple(inputs) + tuple(params)
-        return CheckpointFunction.apply(func, len(inputs), *args)
-    else:
-        return func(*inputs)
-
-
 def torch_checkpoint(func, args, flag, preserve_rng_state=False):
     # torch's gradient checkpoint works with automatic mixed precision, given torch >= 1.8
     if flag:
@@ -153,17 +135,3 @@ def torch_checkpoint(func, args, flag, preserve_rng_state=False):
             func, *args, preserve_rng_state=preserve_rng_state)
     else:
         return func(*args)
-
-
-class CloneGrad(torch.autograd.Function):
-    """
-    a, b => a
-    both a, b recieve the same gradient
-    """
-    @staticmethod
-    def forward(ctx, a, b):
-        return a
-
-    @staticmethod
-    def backward(ctx, grad):
-        return grad, grad

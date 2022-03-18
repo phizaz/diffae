@@ -127,7 +127,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                 style=None,
                 noise=None,
                 t_cond=None,
-                stylespace_cond=None,
                 **kwargs):
         """
         Apply the model to an input batch.
@@ -141,24 +140,16 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
         if t_cond is None:
             t_cond = t
 
-        mu, logvar = None, None
-
         if noise is not None:
             # if the noise is given, we predict the cond from noise
             cond = self.noise_to_cond(noise)
 
-        if stylespace_cond is not None:
-            stylespace_cond = list(
-                torch.split(stylespace_cond, self.stylespace_sizes, dim=1))
-            cond = None
-        else:
-            if cond is None:
-                if x is not None:
-                    assert len(x) == len(
-                        x_start), f'{len(x)} != {len(x_start)}'
+        if cond is None:
+            if x is not None:
+                assert len(x) == len(x_start), f'{len(x)} != {len(x_start)}'
 
-                tmp = self.encode(x_start)
-                cond = tmp['cond']
+            tmp = self.encode(x_start)
+            cond = tmp['cond']
 
         if t is not None:
             _t_emb = timestep_embedding(t, self.conf.model_channels)
@@ -217,19 +208,9 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             k = 0
             for i in range(len(self.input_num_blocks)):
                 for j in range(self.input_num_blocks[i]):
-                    if stylespace_cond is None:
-                        h = self.input_blocks[k](h,
-                                                 emb=enc_time_emb,
-                                                 cond=enc_cond_emb)
-                    else:
-                        if i == 0 and j == 0:
-                            # the first block is just a conv not resblock
-                            h = self.input_blocks[k](h)
-                        else:
-                            h = self.input_blocks[k](
-                                h,
-                                emb=enc_time_emb,
-                                stylespace_cond=stylespace_cond.pop(0))
+                    h = self.input_blocks[k](h,
+                                             emb=enc_time_emb,
+                                             cond=enc_cond_emb)
 
                     # print(i, j, h.shape)
                     hs[i].append(h)
@@ -237,16 +218,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             assert k == len(self.input_blocks)
 
             # middle blocks
-            if stylespace_cond is None:
-                h = self.middle_block(h, emb=mid_time_emb, cond=mid_cond_emb)
-            else:
-                for each in self.middle_block:
-                    if isinstance(each, ResBlock):
-                        h = each(h,
-                                 emb=mid_time_emb,
-                                 stylespace_cond=stylespace_cond.pop(0))
-                    else:
-                        h = each(h)
+            h = self.middle_block(h, emb=mid_time_emb, cond=mid_cond_emb)
         else:
             # no lateral connections
             # happens when training only the autonecoder
@@ -266,24 +238,11 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
                     lateral = None
                     # print(i, j, lateral)
 
-                if stylespace_cond is None:
-                    h = self.output_blocks[k](h,
-                                              emb=dec_time_emb,
-                                              cond=dec_cond_emb,
-                                              lateral=lateral)
-                else:
-                    if isinstance(each, ResBlock):
-                        h = self.output_blocks[k](
-                            h,
-                            emb=dec_time_emb,
-                            lateral=lateral,
-                            stylespace_cond=stylespace_cond.pop(0))
-                    else:
-                        h = self.output_blocks[k](h)
+                h = self.output_blocks[k](h,
+                                          emb=dec_time_emb,
+                                          cond=dec_cond_emb,
+                                          lateral=lateral)
                 k += 1
-
-        if stylespace_cond is not None:
-            assert len(stylespace_cond) == 0
 
         pred = self.out(h)
         return AutoencReturn(pred=pred, cond=cond)
@@ -292,8 +251,6 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
 class AutoencReturn(NamedTuple):
     pred: Tensor
     cond: Tensor = None
-    cond_mu: Tensor = None
-    cond_logvar: Tensor = None
 
 
 class EmbedReturn(NamedTuple):
