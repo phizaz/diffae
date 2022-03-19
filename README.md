@@ -46,6 +46,7 @@ We do not own any of the following datasets. We provide the LMDB ready-to-use da
 
 - [FFHQ](https://drive.google.com/drive/folders/1ww7itaSo53NDMa0q-wn-3HWZ3HHqK1IK?usp=sharing)
 - [CelebAHQ](https://drive.google.com/drive/folders/1SX3JuVHjYA8sA28EGxr_IoHJ63s4Btbl?usp=sharing) 
+- [CelebA](https://drive.google.com/drive/folders/1HJAhK2hLYcT_n0gWlCu5XxdZj-bPekZ0?usp=sharing) 
 - [LSUN Bedroom](https://drive.google.com/drive/folders/1O_3aT3LtY1YDE2pOQCp6MFpCk7Pcpkhb?usp=sharing)
 - [LSUN Horse](https://drive.google.com/drive/folders/1ooHW7VivZUs4i5CarPaWxakCwfeqAK8l?usp=sharing)
 
@@ -55,6 +56,7 @@ The directory tree should be:
 datasets/
 - bedroom256.lmdb
 - celebahq256.lmdb
+- celeba.lmdb
 - ffhq256.lmdb
 - horse256.lmdb
 ```
@@ -64,6 +66,7 @@ Original sources for each dataset is as follows:
 
 - FFHQ (https://github.com/NVlabs/ffhq-dataset)
 - CelebAHQ (https://github.com/switchablenorms/CelebAMask-HQ)
+- CelebA (https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html)
 - LSUN (https://github.com/fyu/lsun)
 
 The conversion codes are provided as:
@@ -71,6 +74,7 @@ The conversion codes are provided as:
 ```
 data_resize_bedroom.py
 data_resize_celebhq.py
+data_resize_celeba.py
 data_resize_ffhq.py
 data_resize_horse.py
 ```
@@ -95,6 +99,11 @@ python run_ffhq128.py
 python run_ffhq128_ddim.py
 ```
 
+A classifier (for manipulation) can be trained using:
+```
+python run_ffhq128_cls.py
+```
+
 **FFHQ256**
 
 We only trained the DiffAE due to high computation cost.
@@ -106,6 +115,11 @@ sbatch run_ffhq256.py
 After the task is done, you need to train the latent DPM (requiring only 1x 2080Ti)
 ```
 python run_ffhq256_latent.py
+```
+
+A classifier (for manipulation) can be trained using:
+```
+python run_ffhq256_cls.py
 ```
 
 **Bedroom128**

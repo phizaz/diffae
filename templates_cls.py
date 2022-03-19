@@ -1,7 +1,7 @@
 from templates import *
 
 
-def cls_ffhq128_autoenc():
+def ffhq128_autoenc_cls():
     conf = ffhq128_autoenc_130M()
     conf.train_mode = TrainMode.manipulate
     conf.manipulate_mode = ManipulateMode.celebahq_all
@@ -19,7 +19,7 @@ def cls_ffhq128_autoenc():
     return conf
 
 
-def cls_ffhq256_autoenc():
+def ffhq256_autoenc_cls():
     '''We first train the encoder on FFHQ dataset then use it as a pretrained to train a linear classifer on CelebA dataset with attribute labels'''
     conf = ffhq256_autoenc()
     conf.train_mode = TrainMode.manipulate

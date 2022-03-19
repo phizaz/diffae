@@ -36,6 +36,8 @@ class ClsModel(pl.LightningModule):
 
         # preparations
         if conf.train_mode == TrainMode.manipulate:
+            # this is only important for training!
+            # the latent is freshly inferred to make sure it matches the image
             # manipulating latents require the base model
             self.model = conf.make_model_conf().make_model()
             self.ema_model = copy.deepcopy(self.model)
@@ -114,7 +116,7 @@ class ClsModel(pl.LightningModule):
             return CelebD2CAttrFewshotDataset(
                 cls_name=self.conf.manipulate_cls,
                 K=self.conf.manipulate_shots,
-                img_folder=data_paths['celeba'][0],
+                img_folder=data_paths['celeba'],
                 img_size=self.conf.img_size,
                 seed=self.conf.manipulate_seed,
                 all_neg=False,
@@ -123,7 +125,7 @@ class ClsModel(pl.LightningModule):
         elif self.conf.manipulate_mode == ManipulateMode.d2c_fewshot_allneg:
             # positive-unlabeled classifier needs to keep the class ratio 1:1
             # we use two dataloaders, one for each class, to stabiliize the training
-            img_folder = '/home/nessessence/mnt_tl_vision05/home/konpat/datasets/celeba_small'  # data_paths['celeba'][0]
+            img_folder = data_paths['celeba']
 
             return [
                 CelebD2CAttrFewshotDataset(
@@ -148,7 +150,7 @@ class ClsModel(pl.LightningModule):
                     do_augment=True),
             ]
         elif self.conf.manipulate_mode == ManipulateMode.celebahq_all:
-            return CelebHQAttrDataset(data_paths['celebahq'][0],
+            return CelebHQAttrDataset(data_paths['celebahq'],
                                       self.conf.img_size,
                                       data_paths['celebahq_anno'],
                                       do_augment=True)
@@ -283,7 +285,6 @@ def ema(source, target, decay):
 
 
 def train_cls(conf: TrainConfig, gpus):
-    conf.base_dir = 'logs-cls'
     print('conf:', conf.name)
     model = ClsModel(conf)
 

@@ -18,32 +18,27 @@ from dataset_util import *
 from torch.utils.data.distributed import DistributedSampler
 
 data_paths = {
-    'ffhq': (os.path.expanduser('~/datasets/ffhq_256/train'),
-             os.path.expanduser('~/datasets/ffhq_256/valid')),
-    # no split
-    'ffhqfull': (os.path.expanduser('~/datasets/ffhq_256'), None),
-    'ffhqlmdb256': (os.path.expanduser('~/datasets/ffhq/ffhq256.lmdb'), None),
-    'ffhqlmdbsplit256':
-    (os.path.expanduser('~/datasets/ffhq/ffhq256.lmdb'), None),
-    'celeba': (os.path.expanduser('~/datasets/celeba_small'), None),
-    'celeba_aligned':
-    (os.path.expanduser('~/datasets/celeba_small_aligned'), None),
+    'ffhqlmdb256':
+    os.path.expanduser('datasets/ffhq256.lmdb'),
+    # used for training a classifier
+    'celeba':
+    os.path.expanduser('datasets/celeba'),
+    # used for training DPM models
+    'celebalmdb':
+    os.path.expanduser('datasets/celeba.lmdb'),
     'celebahq':
-    (os.path.expanduser('~/datasets/CelebAMask-HQ/celebahq.lmdb'), None),
-    'horse': (os.path.expanduser('~/datasets/lsun/horse'), None),
-    'horse256': (os.path.expanduser('~/datasets/lsun/horse256.lmdb'), None),
+    os.path.expanduser('datasets/celebahq256.lmdb'),
+    'horse256':
+    os.path.expanduser('datasets/horse256.lmdb'),
     'bedroom256':
-    (os.path.expanduser('~/datasets/lsun/bedroom256.lmdb'), None),
-    'celebalmdb': (os.path.expanduser('~/datasets/celeba.lmdb'), None),
-    'celebaalignlmdb': (os.path.expanduser('~/datasets/celeba_aligned.lmdb'),
-                        None),
-    ####################
+    os.path.expanduser('datasets/bedroom256.lmdb'),
     'celeba_anno':
-    os.path.expanduser('data/celeba_anno/list_attr_celeba.txt'),
+    os.path.expanduser('datasets/celeba_anno/list_attr_celeba.txt'),
     'celebahq_anno':
-    os.path.expanduser('data/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
+    os.path.expanduser(
+        'datasets/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
     'celeba_relight':
-    os.path.expanduser('data/celeba_hq_light/celeba_light.txt'),
+    os.path.expanduser('datasets/celeba_hq_light/celeba_light.txt'),
 }
 
 
@@ -193,18 +188,10 @@ class TrainConfig(BaseConfig):
     @property
     def data_path(self):
         # may use the cache dir
-        path = data_paths[self.data_name][0]
+        path = data_paths[self.data_name]
         if self.use_cache_dataset and path is not None:
             path = use_cached_dataset_path(
                 path, f'{self.data_cache_dir}/{self.data_name}')
-        return path
-
-    @property
-    def data_val_path(self):
-        path = data_paths[self.data_name][1]
-        if self.use_cache_dataset and path is not None:
-            path = use_cached_dataset_path(
-                path, f'{self.data_cache_dir}/{self.data_name}_val')
         return path
 
     @property
@@ -298,11 +285,6 @@ class TrainConfig(BaseConfig):
         if self.data_name == 'ffhqlmdb256':
             return FFHQlmdb(path=path or self.data_path,
                             image_size=self.img_size,
-                            **kwargs)
-        elif self.data_name == 'ffhqlmdbsplit256':
-            return FFHQlmdb(path=path or self.data_path,
-                            image_size=self.img_size,
-                            split='train',
                             **kwargs)
         elif self.data_name == 'horse256':
             return Horse_lmdb(path=path or self.data_path,
