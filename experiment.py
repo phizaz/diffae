@@ -235,7 +235,6 @@ class LitModel(pl.LightningModule):
         return (batch_idx + 1) % self.conf.accum_batches == 0
 
     def infer_whole_dataset(self,
-                            both_flips=False,
                             with_render=False,
                             T_render=None,
                             render_save_path=None):
@@ -247,25 +246,14 @@ class LitModel(pl.LightningModule):
             with_render: whether to also render the images corresponding to that latent
             render_save_path: lmdb output for the rendered images
         """
-        if both_flips:
-            # both original pose and its flipped version
-            data_a = self.conf.make_dataset()
-            assert not (isinstance(data_a, CelebAlmdb) and data_a.crop_d2c
-                        ), "doesn't support celeba dataset with d2c crop"
-            data_a.transform = make_transform(self.conf.img_size, flip_prob=0)
-            data_b = self.conf.make_dataset()
-            data_b.transform = make_transform(self.conf.img_size, flip_prob=1)
-            data = ConcatDataset([data_a, data_b])
+        data = self.conf.make_dataset()
+        if isinstance(data, CelebAlmdb) and data.crop_d2c:
+            # special case where we need the d2c crop
+            data.transform = make_transform(self.conf.img_size,
+                                            flip_prob=0,
+                                            crop_d2c=True)
         else:
-            data = self.conf.make_dataset()
-            if isinstance(data, CelebAlmdb) and data.crop_d2c:
-                # special case where we need the d2c crop
-                data.transform = make_transform(self.conf.img_size,
-                                                flip_prob=0,
-                                                crop_d2c=True)
-            else:
-                data.transform = make_transform(self.conf.img_size,
-                                                flip_prob=0)
+            data.transform = make_transform(self.conf.img_size, flip_prob=0)
 
         # data = SubsetDataset(data, 21)
 
@@ -690,24 +678,15 @@ class LitModel(pl.LightningModule):
 
         # it will run only one step!
         print('global step:', self.global_step)
-        # score = evaluate_lpips(sampler=self.eval_sampler,
-        #                        model=self.ema_model,
-        #                        conf=self.conf,
-        #                        device=self.device,
-        #                        val_data=self.val_data)
-        # self.log('lpips', score)
         """
         "infer" = predict the latent variables using the encoder on the whole dataset
         """
-        if 'infer' in self.conf.eval_programs or 'inferflip' in self.conf.eval_programs:
+        if 'infer' in self.conf.eval_programs:
             if 'infer' in self.conf.eval_programs:
                 print('infer ...')
-                conds = self.infer_whole_dataset(both_flips=False).float()
-                save_path = f'latent_infer/{self.conf.name}.pkl'
-            elif 'inferflip' in self.conf.eval_programs:
-                print('infer both ...')
-                conds = self.infer_whole_dataset(both_flips=True).float()
-                save_path = f'latent_infer_flip/{self.conf.name}.pkl'
+                conds = self.infer_whole_dataset().float()
+                # NOTE: always use this path for the latent.pkl files
+                save_path = f'checkpoints/{self.conf.name}/latent.pkl'
             else:
                 raise NotImplementedError()
 

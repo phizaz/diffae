@@ -80,4 +80,57 @@ Google drive: https://drive.google.com/drive/folders/1abNP4QKGbNnymjn8607BF0cwxX
 
 ## Training
 
-Soon ...
+We provide scripts for training & evaluate DDIM and DiffAE (including latent DPM) on the following datasets: FFHQ128, FFHQ256, Bedroom128, Horse128, Celeba64 (D2C's crop).
+Usually, the evaluation results (FID's) will be available in `eval` directory.
+
+Note: Most experiment requires at least 4x V100s during training the DPM models while requiring 1x 2080Ti during training the accompanying latent DPM. 
+
+
+
+**FFHQ128**
+```
+# diffae
+python run_ffhq128.py
+# ddim
+python run_ffhq128_ddim.py
+```
+
+**FFHQ256**
+
+We only trained the DiffAE due to high computation cost.
+This requires 8x V100s.
+```
+sbatch run_ffhq256.py
+```
+
+After the task is done, you need to train the latent DPM (requiring only 1x 2080Ti)
+```
+python run_ffhq256_latent.py
+```
+
+**Bedroom128**
+
+```
+# diffae
+python run_bedroom128.py
+# ddim
+python run_bedroom128_ddim.py
+```
+
+**Horse128**
+
+```
+# diffae
+python run_horse128.py
+# ddim
+python run_horse128_ddim.py
+```
+
+**Celeba64**
+
+This experiment can be run on 2080Ti's.
+
+```
+# diffae
+python run_celeba64.py
+```

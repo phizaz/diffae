@@ -122,7 +122,7 @@ def ffhq128_ddpm():
     return conf
 
 
-def ffhq128_autoenc():
+def ffhq128_autoenc_base():
     conf = autoenc_base()
     conf.data_name = 'ffhqlmdb256'
     conf.scale_up_gpus(4)
@@ -139,7 +139,7 @@ def ffhq128_autoenc():
 
 
 def ffhq256_autoenc():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.img_size = 256
     conf.net_ch = 128
     conf.net_ch_mult = (1, 1, 2, 2, 4, 4)
@@ -161,7 +161,7 @@ def ffhq128_ddpm_72M():
 
 
 def ffhq128_autoenc_72M():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.total_samples = 72_000_000
     conf.name = 'ffhq128_autoenc_72M'
     return conf
@@ -177,7 +177,7 @@ def ffhq128_ddpm_130M():
 
 
 def ffhq128_autoenc_130M():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.total_samples = 130_000_000
     conf.eval_ema_every_samples = 10_000_000
     conf.eval_every_samples = 10_000_000
@@ -196,7 +196,7 @@ def horse128_ddpm():
 
 
 def horse128_autoenc():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.data_name = 'horse256'
     conf.total_samples = 130_000_000
     conf.eval_ema_every_samples = 10_000_000
@@ -216,7 +216,7 @@ def bedroom128_ddpm():
 
 
 def bedroom128_autoenc():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.data_name = 'bedroom256'
     conf.eval_ema_every_samples = 10_000_000
     conf.eval_every_samples = 10_000_000
@@ -236,7 +236,7 @@ def pretrain_celeba64d2c_72M():
 
 
 def pretrain_ffhq128_autoenc72M():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.postfix = ''
     conf.pretrain = PretrainConfig(
         name='72M',
@@ -247,7 +247,7 @@ def pretrain_ffhq128_autoenc72M():
 
 
 def pretrain_ffhq128_autoenc130M():
-    conf = ffhq128_autoenc()
+    conf = ffhq128_autoenc_base()
     conf.pretrain = PretrainConfig(
         name='130M',
         path=f'checkpoints/{ffhq128_autoenc_130M().name}/last.ckpt',
