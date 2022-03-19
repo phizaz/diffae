@@ -8,6 +8,14 @@ A CVPR 2022 paper:
 
 Note: Since we expect a lot of changes on the codebase, please fork the repo before using.
 
+### Prerequisites
+
+See `requirements.txt`
+
+```
+pip install -r requirements.txt
+```
+
 ### Quick start
 
 A jupyter notebook.
