@@ -1,6 +1,4 @@
-logs
-logs-cls
-log-latent
+temp
 __pycache__
 generated
 latent_infer

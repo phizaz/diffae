@@ -24,6 +24,12 @@ For unconditional generation: `sample.ipynb`
 
 For manipulation: `manipulate.ipynb`
 
+Aligning your own images:
+
+1. Put images into the `imgs` directory
+2. Run `align.py` (need to `pip install dlib requests`)
+3. Result images will be available in `imgs_align` directory
+
 ### Checkpoints
 
 We provide checkpoints for the following models:
