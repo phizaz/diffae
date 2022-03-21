@@ -4,16 +4,13 @@ import sys
 from multiprocessing import Pool
 
 import dlib
+import numpy as np
+import PIL.Image
 import requests
+import scipy.ndimage
 from tqdm import tqdm
 
 LANDMARKS_MODEL_URL = 'http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2'
-
-import os
-
-import numpy as np
-import PIL.Image
-import scipy.ndimage
 
 
 def image_align(src_file,
@@ -181,7 +178,7 @@ if __name__ == "__main__":
     python align_images.py /raw_images /aligned_images
     """
 
-    # takes very long time  ... 
+    # takes very long time  ...
     landmarks_model_path = unpack_bz2(
         get_file(
             'http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2',
