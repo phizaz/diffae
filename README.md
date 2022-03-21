@@ -31,9 +31,18 @@ Aligning your own images:
 2. Run `align.py` (need to `pip install dlib requests`)
 3. Result images will be available in `imgs_align` directory
 
-| **Original** in `imgs` directory<br><img src="imgs/sandy.JPG" style="height: 256px">  | **Aligned** with `align.py`<br><img src="imgs_align/sandy.png" style="height: 256px;"> | **Manipulated** with `manipulate.ipynb`<br><img src="imgs_manipulated/sandy-wavyhair.png" style="height: 256px;"> |
-|---|---|---|
-
+<table>
+<tr>
+<td width="33%">
+**Original** in `imgs` directory<br><img src="imgs/sandy.JPG" style="width: 100%">
+</td>
+<td width="33%">
+**Aligned** with `align.py`<br><img src="imgs_align/sandy.png" style="width: 100%"></td>
+<td width="33%">
+**Manipulated** with `manipulate.ipynb`<br><img src="imgs_manipulated/sandy-wavyhair.png" style="width: 100%">
+</td>
+</tr>
+</table>
 
 ### Checkpoints
 
