@@ -19,6 +19,7 @@ pip install -r requirements.txt
 ### Quick start
 
 A jupyter notebook.
+    img {
 
 For unconditional generation: `sample.ipynb`
 
@@ -29,6 +30,16 @@ Aligning your own images:
 1. Put images into the `imgs` directory
 2. Run `align.py` (need to `pip install dlib requests`)
 3. Result images will be available in `imgs_align` directory
+
+<style type="text/css">
+    img {
+        height: 256px;
+    }
+</style>
+
+| **Original** in `imgs` directory ![](imgs/sandy.JPG)  | **Aligned** with `align.py` ![](imgs_align/sandy.png) | **Manipulated** with `manipulate.py` ![](imgs_manipulated/sandy-wavyhair.png) |
+|---|---|---|
+
 
 ### Checkpoints
 
