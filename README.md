@@ -31,7 +31,7 @@ Aligning your own images:
 2. Run `align.py` (need to `pip install dlib requests`)
 3. Result images will be available in `imgs_align` directory
 
-| **Original** in `imgs` directory <img src="imgs/sandy.JPG" style="width: 256px">  | **Aligned** with `align.py` <img src="imgs_align/sandy.png" style="width:256px"> | **Manipulated** with `manipulate.py` <img src="imgs_manipulated/sandy-wavyhair.png" style="width:256px"> |
+| **Original** in `imgs` directory <img src="imgs/sandy.JPG" style="height: 256px">  | **Aligned** with `align.py` <img src="imgs_align/sandy.png" style="width: 256px; height: 256px;"> | **Manipulated** with `manipulate.py` <img src="imgs_manipulated/sandy-wavyhair.png" style="width:256px; height: 256px;"> |
 |---|---|---|
 
 
