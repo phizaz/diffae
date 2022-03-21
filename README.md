@@ -33,13 +33,13 @@ Aligning your own images:
 
 <table>
 <tr>
-<th style="width:33%">
+<th width="33%">
 Original in <code>imgs</code> directory<br><img src="imgs/sandy.JPG" style="width: 100%">
 </th>
-<th style="width:33%">
+<th width="33%">
 Aligned with <code>align.py</code><br><img src="imgs_align/sandy.png" style="width: 100%">
 </th>
-<th style="width:33%">
+<th width="33%">
 Manipulated with <code>manipulate.ipynb</code><br><img src="imgs_manipulated/sandy-wavyhair.png" style="width: 100%">
 </th>
 </tr>
