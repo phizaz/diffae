@@ -19,7 +19,6 @@ pip install -r requirements.txt
 ### Quick start
 
 A jupyter notebook.
-    img {
 
 For unconditional generation: `sample.ipynb`
 
