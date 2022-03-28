@@ -6,7 +6,7 @@ def ffhq128_autoenc_cls():
     conf.train_mode = TrainMode.manipulate
     conf.manipulate_mode = ManipulateMode.celebahq_all
     conf.manipulate_znormalize = True
-    conf.latent_infer_path = f'checkpoints/{ffhq128_autoenc_130M().name}.pkl'
+    conf.latent_infer_path = f'checkpoints/{ffhq128_autoenc_130M().name}/latent.pkl'
     conf.batch_size = 32
     conf.lr = 1e-3
     conf.total_samples = 300_000
