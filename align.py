@@ -1,5 +1,6 @@
 import bz2
 import os
+import os.path as osp
 import sys
 from multiprocessing import Pool
 
@@ -195,7 +196,7 @@ if __name__ == "__main__":
     RAW_IMAGES_DIR =  args.input_imgs_path  
     ALIGNED_IMAGES_DIR = args.output_imgs_path
 
-    if not os.exists(ALIGNED_IMAGES_DIR):  os.makedirs(ALIGNED_IMAGES_DIR)
+    if not osp.exists(ALIGNED_IMAGES_DIR):  os.makedirs(ALIGNED_IMAGES_DIR)
 
     files = os.listdir(RAW_IMAGES_DIR)
     with tqdm(total=len(files)) as progress:
