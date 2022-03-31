@@ -9,6 +9,7 @@ import PIL.Image
 import requests
 import scipy.ndimage
 from tqdm import tqdm
+from argparse import ArgumentParser
 
 LANDMARKS_MODEL_URL = 'http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2'
 
@@ -177,6 +178,11 @@ if __name__ == "__main__":
     Extracts and aligns all faces from images using DLib and a function from original FFHQ dataset preparation step
     python align_images.py /raw_images /aligned_images
     """
+    parser = ArgumentParser()
+    parser.add_argument("-i","--input_imgs_path", type=str, default = "imgs",help = "input images directory path")
+    parser.add_argument("-o","--output_imgs_path", type=str, default = "imgs_align",help = "output images directory path")
+
+    args = parser.parse_args()
 
     # takes very long time  ...
     landmarks_model_path = unpack_bz2(
@@ -186,8 +192,10 @@ if __name__ == "__main__":
 
     # RAW_IMAGES_DIR = sys.argv[1]
     # ALIGNED_IMAGES_DIR = sys.argv[2]
-    RAW_IMAGES_DIR = 'imgs'
-    ALIGNED_IMAGES_DIR = 'imgs_align'
+    RAW_IMAGES_DIR =  args.input_imgs_path  
+    ALIGNED_IMAGES_DIR = args.output_imgs_path
+
+    if not os.exists(ALIGNED_IMAGES_DIR):  os.makedirs(ALIGNED_IMAGES_DIR)
 
     files = os.listdir(RAW_IMAGES_DIR)
     with tqdm(total=len(files)) as progress:
@@ -227,3 +235,4 @@ if __name__ == "__main__":
 
             # pool.close()
             # pool.join()
+    print(f"output aligned images at: {ALIGNED_IMAGES_DIR}")
