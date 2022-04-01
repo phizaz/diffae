@@ -61,6 +61,7 @@ def image_align(src_file,
         )
         return
     img = PIL.Image.open(src_file)
+    img = img.convert('RGB')
 
     # Shrink.
     shrink = int(np.floor(qsize / output_size * 0.5))
@@ -180,8 +181,16 @@ if __name__ == "__main__":
     python align_images.py /raw_images /aligned_images
     """
     parser = ArgumentParser()
-    parser.add_argument("-i","--input_imgs_path", type=str, default = "imgs",help = "input images directory path")
-    parser.add_argument("-o","--output_imgs_path", type=str, default = "imgs_align",help = "output images directory path")
+    parser.add_argument("-i",
+                        "--input_imgs_path",
+                        type=str,
+                        default="imgs",
+                        help="input images directory path")
+    parser.add_argument("-o",
+                        "--output_imgs_path",
+                        type=str,
+                        default="imgs_align",
+                        help="output images directory path")
 
     args = parser.parse_args()
 
@@ -193,10 +202,10 @@ if __name__ == "__main__":
 
     # RAW_IMAGES_DIR = sys.argv[1]
     # ALIGNED_IMAGES_DIR = sys.argv[2]
-    RAW_IMAGES_DIR =  args.input_imgs_path  
+    RAW_IMAGES_DIR = args.input_imgs_path
     ALIGNED_IMAGES_DIR = args.output_imgs_path
 
-    if not osp.exists(ALIGNED_IMAGES_DIR):  os.makedirs(ALIGNED_IMAGES_DIR)
+    if not osp.exists(ALIGNED_IMAGES_DIR): os.makedirs(ALIGNED_IMAGES_DIR)
 
     files = os.listdir(RAW_IMAGES_DIR)
     print(f'total img files {len(files)}')
