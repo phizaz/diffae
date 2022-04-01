@@ -199,6 +199,7 @@ if __name__ == "__main__":
     if not osp.exists(ALIGNED_IMAGES_DIR):  os.makedirs(ALIGNED_IMAGES_DIR)
 
     files = os.listdir(RAW_IMAGES_DIR)
+    print(f'total img files {len(files)}')
     with tqdm(total=len(files)) as progress:
 
         def cb(*args):
