@@ -13,6 +13,8 @@ A CVPR 2022 (ORAL) paper [(read preprint)](https://arxiv.org/abs/2111.15640):
 
 ## Usage
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://drive.google.com/file/d/1OTfwkklN-IEd4hFk4LnweOleyDtS4XTh/view?usp=sharing]
+
 Note: Since we expect a lot of changes on the codebase, please fork the repo before using.
 
 ### Prerequisites
