@@ -153,6 +153,21 @@ def ffhq256_autoenc():
     return conf
 
 
+def ffhq256_autoenc_eco():
+    conf = ffhq128_autoenc_base()
+    conf.img_size = 256
+    conf.net_ch = 128
+    conf.net_ch_mult = (1, 1, 2, 2, 4, 4)
+    conf.net_enc_channel_mult = (1, 1, 2, 2, 4, 4, 4)
+    conf.eval_every_samples = 10_000_000
+    conf.eval_ema_every_samples = 10_000_000
+    conf.total_samples = 200_000_000
+    conf.batch_size = 64
+    conf.make_model_conf()
+    conf.name = 'ffhq256_autoenc_eco'
+    return conf
+
+
 def ffhq128_ddpm_72M():
     conf = ffhq128_ddpm()
     conf.total_samples = 72_000_000
