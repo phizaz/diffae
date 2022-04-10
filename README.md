@@ -1,8 +1,15 @@
 # Official implementation of Diffusion Autoencoders
 
-A CVPR 2022 paper:
+A CVPR 2022 (ORAL) paper [(read preprint)](https://arxiv.org/abs/2111.15640):
 
-> Preechakul, Konpat, Nattanat Chatthee, Suttisak Wizadwongsa, and Supasorn Suwajanakorn. 2021. “Diffusion Autoencoders: Toward a Meaningful and Decodable Representation.” arXiv [cs.CV]. arXiv. http://arxiv.org/abs/2111.15640.
+```
+@inproceedings{preechakul2021diffusion,
+      title={Diffusion Autoencoders: Toward a Meaningful and Decodable Representation}, 
+      author={Preechakul, Konpat and Chatthee, Nattanat and Wizadwongsa, Suttisak and Suwajanakorn, Supasorn},
+      booktitle={IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}, 
+      year={2022},
+}
+```
 
 ## Usage
 
