@@ -92,7 +92,14 @@ class LitModel(pl.LightningModule):
             self.device)
         return cond
 
-    def sample(self, N, device):
+    def sample(self, N, device, T=None, T_latent=None):
+        if T is None:
+            sampler = self.eval_sampler
+            latent_sampler = self.latent_sampler
+        else:
+            sampler = self.conf._make_diffusion_conf(T).make_sampler()
+            latent_sampler = self.conf._make_latent_diffusion_conf(T_latent).make_sampler()
+
         noise = torch.randn(N,
                             3,
                             self.conf.img_size,
@@ -102,26 +109,31 @@ class LitModel(pl.LightningModule):
             self.conf,
             self.ema_model,
             noise,
-            sampler=self.eval_sampler,
-            latent_sampler=self.eval_latent_sampler,
+            sampler=sampler,
+            latent_sampler=latent_sampler,
             conds_mean=self.conds_mean,
             conds_std=self.conds_std,
         )
         pred_img = (pred_img + 1) / 2
         return pred_img
 
-    def render(self, noise, cond=None):
+    def render(self, noise, cond=None, T=None):
+        if T is None:
+            sampler = self.eval_sampler
+        else:
+            sampler = self.conf._make_diffusion_conf(T).make_sampler()
+
         if cond is not None:
             pred_img = render_condition(self.conf,
                                         self.ema_model,
                                         noise,
-                                        sampler=self.eval_sampler,
+                                        sampler=sampler,
                                         cond=cond)
         else:
             pred_img = render_uncondition(self.conf,
                                           self.ema_model,
                                           noise,
-                                          sampler=self.eval_sampler,
+                                          sampler=sampler,
                                           latent_sampler=None)
         pred_img = (pred_img + 1) / 2
         return pred_img
@@ -132,9 +144,14 @@ class LitModel(pl.LightningModule):
         cond = self.ema_model.encoder.forward(x)
         return cond
 
-    def encode_stochastic(self, x, cond):
-        out = self.eval_sampler.ddim_reverse_sample_loop(
-            self.ema_model, x, model_kwargs={'cond': cond})
+    def encode_stochastic(self, x, cond, T=None):
+        if T is None:
+            sampler = self.eval_sampler
+        else:
+            sampler = self.conf._make_diffusion_conf(T).make_sampler()
+        out = sampler.ddim_reverse_sample_loop(self.ema_model,
+                                               x,
+                                               model_kwargs={'cond': cond})
         return out['sample']
 
     def forward(self, noise=None, x_start=None, ema_model: bool = False):

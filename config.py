@@ -269,7 +269,7 @@ class TrainConfig(BaseConfig):
             raise NotImplementedError()
 
     def make_diffusion_conf(self):
-        return self._make_diffusion_conf(T=self.T)
+        return self._make_diffusion_conf(self.T)
 
     def make_eval_diffusion_conf(self):
         return self._make_diffusion_conf(T=self.T_eval)
