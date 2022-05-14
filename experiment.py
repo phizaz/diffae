@@ -599,18 +599,6 @@ class LitModel(pl.LightningModule):
                     }
                     f.write(json.dumps(metrics) + "\n")
 
-        def intp_fid(model, postfix):
-            if self.conf.train_mode.is_interpolate():
-                score = evaluate_interpolate_fid(self.eval_sampler,
-                                                 model,
-                                                 self.conf,
-                                                 device=self.device,
-                                                 train_data=self.train_data,
-                                                 val_data=self.val_data)
-                if self.global_rank == 0:
-                    self.logger.experiment.add_scalar(f'FID_intp{postfix}',
-                                                      score, self.num_samples)
-
         def lpips(model, postfix):
             if self.conf.model_type.has_autoenc(
             ) and self.conf.train_mode.is_autoenc():
@@ -631,7 +619,6 @@ class LitModel(pl.LightningModule):
                 self.num_samples, self.conf.eval_every_samples,
                 self.conf.batch_size_effective):
             print(f'eval fid @ {self.num_samples}')
-            intp_fid(self.model, '')
             lpips(self.model, '')
             fid(self.model, '')
 
