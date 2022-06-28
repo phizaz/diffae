@@ -107,8 +107,7 @@ def evaluate_lpips(
                                              x_T=x_T,
                                              x_start=imgs,
                                              cond=None,
-                                             sampler=sampler,
-                                             latent_sampler=latent_sampler)
+                                             sampler=sampler)
             # # returns {'cond', 'cond2'}
             # conds = model.encode(imgs)
             # pred_imgs = sampler.sample(model=model,
