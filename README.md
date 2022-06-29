@@ -1,6 +1,6 @@
 # Official implementation of Diffusion Autoencoders
 
-A CVPR 2022 (ORAL) paper [(read preprint)](https://arxiv.org/abs/2111.15640):
+A CVPR 2022 (ORAL) paper ([paper](https://openaccess.thecvf.com/content/CVPR2022/html/Preechakul_Diffusion_Autoencoders_Toward_a_Meaningful_and_Decodable_Representation_CVPR_2022_paper.html), [site](https://diff-ae.github.io/), [5-min video](https://youtu.be/i3rjEsiHoUU)):
 
 ```
 @inproceedings{preechakul2021diffusion,
