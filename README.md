@@ -33,6 +33,8 @@ For unconditional generation: `sample.ipynb`
 
 For manipulation: `manipulate.ipynb`
 
+For interpolation: `interpolate.ipynb`
+
 Aligning your own images:
 
 1. Put images into the `imgs` directory
