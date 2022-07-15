@@ -35,6 +35,8 @@ For manipulation: `manipulate.ipynb`
 
 For interpolation: `interpolate.ipynb`
 
+For autoencoding: `autoencoding.ipynb`
+
 Aligning your own images:
 
 1. Put images into the `imgs` directory
