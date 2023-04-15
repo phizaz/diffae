@@ -1,3 +1,4 @@
+from dataset_video import ShanghaiTechDataset
 from model.unet import ScaleAt
 from model.latentnet import *
 from diffusion.resample import UniformSampler
@@ -39,6 +40,8 @@ data_paths = {
         'datasets/celeba_anno/CelebAMask-HQ-attribute-anno.txt'),
     'celeba_relight':
     os.path.expanduser('datasets/celeba_hq_light/celeba_light.txt'),
+    'video':
+    os.path.expanduser('/home/eprakash/shanghaitech/scripts/full_train_img_to_video.txt'),
 }
 
 
@@ -160,6 +163,11 @@ class TrainConfig(BaseConfig):
     use_cache_dataset: bool = False
     data_cache_dir: str = os.path.expanduser('~/cache')
     work_cache_dir: str = os.path.expanduser('~/mycache')
+
+    # video-specific options
+    frames: int = 9
+    frame_batch_size: int = 4
+
     # to be overridden
     name: str = ''
 
@@ -301,6 +309,11 @@ class TrainConfig(BaseConfig):
                               original_resolution=None,
                               crop_d2c=True,
                               **kwargs)
+        elif self.data_name == 'video':
+            return ShanghaiTechDataset(path=path or self.data_path,
+                                       image_size=self.img_size,
+                                       original_resolution=None,
+                                       **kwargs)
         else:
             raise NotImplementedError()
 
@@ -337,7 +350,7 @@ class TrainConfig(BaseConfig):
                 attention_resolutions=self.net_attn,
                 channel_mult=self.net_ch_mult,
                 conv_resample=True,
-                dims=2,
+                dims=3,
                 dropout=self.dropout,
                 embed_channels=self.net_beatgans_embed_channels,
                 image_size=self.img_size,
@@ -391,7 +404,8 @@ class TrainConfig(BaseConfig):
                 attention_resolutions=self.net_attn,
                 channel_mult=self.net_ch_mult,
                 conv_resample=True,
-                dims=2,
+                dims=3,
+                frames=self.frames,
                 dropout=self.dropout,
                 embed_channels=self.net_beatgans_embed_channels,
                 enc_out_channels=self.style_ch,

@@ -155,7 +155,7 @@ class BeatGANsUNetModel(nn.Module):
                 self.input_num_blocks[level] += 1
                 # print(input_block_chans)
             if level != len(conf.channel_mult) - 1:
-                resolution //= 2
+                resolution //= 16
                 out_ch = ch
                 self.input_blocks.append(
                     TimestepEmbedSequential(
@@ -177,7 +177,7 @@ class BeatGANsUNetModel(nn.Module):
                 # input_block_chans.append(ch)
                 input_block_chans[level + 1].append(ch)
                 self.input_num_blocks[level + 1] += 1
-                ds *= 2
+                ds *= 16
                 self._feature_size += ch
 
         self.middle_block = TimestepEmbedSequential(
@@ -247,7 +247,7 @@ class BeatGANsUNetModel(nn.Module):
                             use_new_attention_order,
                         ))
                 if level and i == conf.num_res_blocks:
-                    resolution *= 2
+                    resolution *= 16
                     out_ch = ch
                     layers.append(
                         ResBlockConfig(
@@ -265,7 +265,7 @@ class BeatGANsUNetModel(nn.Module):
                                         conf.conv_resample,
                                         dims=conf.dims,
                                         out_channels=out_ch))
-                    ds //= 2
+                    ds //= 16
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
                 self.output_num_blocks[level] += 1
                 self._feature_size += ch
@@ -356,6 +356,7 @@ class BeatGANsEncoderConfig(BaseConfig):
     model_channels: int
     out_hid_channels: int
     out_channels: int
+    frames: int
     num_res_blocks: int
     attention_resolutions: Tuple[int]
     dropout: float = 0
@@ -489,6 +490,7 @@ class BeatGANsEncoderModel(nn.Module):
                 nn.AdaptiveAvgPool2d((1, 1)),
                 conv_nd(conf.dims, ch, conf.out_channels, 1),
                 nn.Flatten(),
+                nn.Linear(conf.frames * conf.out_channels, conf.out_channels),
             )
         else:
             raise NotImplementedError(f"Unexpected {conf.pool} pooling")

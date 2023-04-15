@@ -6,11 +6,14 @@ from torch.nn.functional import silu
 
 from .latentnet import *
 from .unet import *
+from .resnet import *
 from choices import *
 
 
 @dataclass
 class BeatGANsAutoencConfig(BeatGANsUNetConfig):
+    # number of frames in video (only used by UNet encoder)
+    frames: int = 9
     # number of style channels
     enc_out_channels: int = 512
     enc_attn_resolutions: Tuple[int] = None
@@ -35,7 +38,10 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             time_out_channels=conf.embed_channels,
         )
 
+        self.encoder = ResNetEncoderModel()
+        '''
         self.encoder = BeatGANsEncoderConfig(
+            frames=conf.frames,
             image_size=conf.image_size,
             in_channels=conf.in_channels,
             model_channels=conf.model_channels,
@@ -56,6 +62,7 @@ class BeatGANsAutoencModel(BeatGANsUNetModel):
             use_new_attention_order=conf.use_new_attention_order,
             pool=conf.enc_pool,
         ).make_model()
+        '''
 
         if conf.latent_net_conf is not None:
             self.latent_net = conf.latent_net_conf.make_model()

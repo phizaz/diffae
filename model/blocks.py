@@ -360,7 +360,7 @@ class Upsample(nn.Module):
     def forward(self, x):
         assert x.shape[1] == self.channels
         if self.dims == 3:
-            x = F.interpolate(x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2),
+            x = F.interpolate(x, (x.shape[2], x.shape[3] * 16, x.shape[4] * 16),
                               mode="nearest")
         else:
             x = F.interpolate(x, scale_factor=2, mode="nearest")
@@ -384,7 +384,7 @@ class Downsample(nn.Module):
         self.out_channels = out_channels or channels
         self.use_conv = use_conv
         self.dims = dims
-        stride = 2 if dims != 3 else (1, 2, 2)
+        stride = 16 if dims != 3 else (1, 16, 16)
         if use_conv:
             self.op = conv_nd(dims,
                               self.channels,
