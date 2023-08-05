@@ -291,7 +291,7 @@ class TrainConfig(BaseConfig):
                               image_size=self.img_size,
                               **kwargs)
         elif self.data_name == 'bedroom256':
-            return Horse_lmdb(path=path or self.data_path,
+            return Bedroom_lmdb(path=path or self.data_path,
                               image_size=self.img_size,
                               **kwargs)
         elif self.data_name == 'celebalmdb':
