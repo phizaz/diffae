@@ -21,6 +21,9 @@ def resize_and_convert(img, size, resample, quality=100):
 
     return val
 
+# Define a top-level collate function instead of using a lambda to avoid pickling issues
+def collate_fn(batch):
+    return batch
 
 def resize_multiple(img,
                     sizes=(128, 256, 512, 1024),

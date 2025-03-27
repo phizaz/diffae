@@ -7,6 +7,7 @@ from typing import Tuple
 from torch.utils.data import DataLoader
 
 from config_base import BaseConfig
+from config.model_config import BeatGANsUNetConfig, BeatGANsAutoencConfig, MLPSkipNetConfig
 from dataset import *
 from diffusion import *
 from diffusion.base import GenerativeType, LossType, ModelMeanType, ModelVarType, get_named_beta_schedule

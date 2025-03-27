@@ -74,7 +74,7 @@ if __name__ == "__main__":
     loader = DataLoader(dataset,
                         batch_size=50,
                         num_workers=12,
-                        collate_fn=lambda x: x,
+                        collate_fn=collate_fn,
                         shuffle=False)
 
     target = os.path.expanduser(out_path)

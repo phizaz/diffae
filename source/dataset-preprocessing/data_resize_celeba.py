@@ -6,6 +6,7 @@ from functools import partial
 from io import BytesIO
 from multiprocessing import Process, Queue
 from os.path import exists, join
+from pathlib import Path
 
 import lmdb
 from PIL import Image
@@ -16,14 +17,20 @@ from tqdm import tqdm
 
 
 def resize_and_convert(img, size, resample, quality=100):
-    img = trans_fn.resize(img, size, resample)
-    img = trans_fn.center_crop(img, size)
+    if size is not None:
+        img = trans_fn.resize(img, size, resample)
+        img = trans_fn.center_crop(img, size)
+
     buffer = BytesIO()
     img.save(buffer, format="webp", quality=quality)
     val = buffer.getvalue()
 
     return val
 
+
+# Define a top-level collate function instead of using a lambda to avoid pickling issues
+def collate_fn(batch):
+    return batch
 
 def resize_multiple(img,
                     sizes=(128, 256, 512, 1024),
@@ -44,34 +51,50 @@ def resize_worker(idx, img, sizes, resample):
 
 
 class ConvertDataset(Dataset):
-    def __init__(self, data) -> None:
+    def __init__(self, data, size) -> None:
         self.data = data
+        self.size = size
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
-        img, _ = self.data[index]
-        bytes = resize_and_convert(img, 256, Image.LANCZOS, quality=90)
+        img = self.data[index]
+        bytes = resize_and_convert(img, self.size, Image.LANCZOS, quality=100)
         return bytes
 
 
+class ImageFolder(Dataset):
+    def __init__(self, folder, ext='jpg'):
+        super().__init__()
+        paths = sorted([p for p in Path(f'{folder}').glob(f'*.{ext}')])
+        self.paths = paths
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, index):
+        path = os.path.join(self.paths[index])
+        img = Image.open(path)
+        return img
+
+
 if __name__ == "__main__":
-    """
-    converting lsun' original lmdb to our lmdb, which is somehow more performant.
-    """
     from tqdm import tqdm
 
-    # path to the original lsun's lmdb
-    src_path = 'datasets/horse_train_lmdb'
-    out_path = 'datasets/horse256.lmdb'
+    out_path = 'datasets/celeba.lmdb'
+    in_path = 'datasets/celeba'
+    ext = 'jpg'
+    size = None
 
-    dataset = LSUNClass(root=os.path.expanduser(src_path))
-    dataset = ConvertDataset(dataset)
+    dataset = ImageFolder(in_path, ext)
+    print('len:', len(dataset))
+    dataset = ConvertDataset(dataset, size)
     loader = DataLoader(dataset,
                         batch_size=50,
-                        num_workers=16,
-                        collate_fn=lambda x: x)
+                        num_workers=12,
+                        collate_fn=collate_fn,
+                        shuffle=False)
 
     target = os.path.expanduser(out_path)
     if os.path.exists(target):
@@ -83,7 +106,7 @@ if __name__ == "__main__":
             for batch in loader:
                 with env.begin(write=True) as txn:
                     for img in batch:
-                        key = f"{256}-{str(i).zfill(7)}".encode("utf-8")
+                        key = f"{size}-{str(i).zfill(7)}".encode("utf-8")
                         # print(key)
                         txn.put(key, img)
                         i += 1

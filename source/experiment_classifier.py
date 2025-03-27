@@ -1,3 +1,9 @@
+"""
+Need to revise this further, still didn't have a chance to test it!
+"""
+
+
+
 from config import *
 from dataset import *
 import pandas as pd
@@ -47,7 +53,7 @@ class ClsModel(pl.LightningModule):
 
             if conf.pretrain is not None:
                 print(f'loading pretrain ... {conf.pretrain.name}')
-                state = torch.load(conf.pretrain.path, map_location='cpu')
+                state = torch.load(conf.pretrain.path, map_location='cpu',weights_only=False)
                 print('step:', state['global_step'])
                 self.load_state_dict(state['state_dict'], strict=False)
 

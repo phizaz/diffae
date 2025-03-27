@@ -1,5 +1,27 @@
 from experiment import *
 
+# PyTorch vs PyTorch Lighning Module
+
+# Check if the environment variable 'BREAK_CIRCULAR_IMPORTS' is set.
+# This variable is likely used to prevent issues related to circular imports.
+if os.environ.get('BREAK_CIRCULAR_IMPORTS'):
+    # If the variable is set, we deliberately skip importing modules that are known to cause circular import problems.
+    import sys
+
+    # Create a dummy module for 'torch.types' by assigning an empty type (class) to it.
+    sys.modules['torch.types'] = type('', (), {})
+    # Similarly, create a dummy module for 'torch.utils._python_dispatch'.
+    sys.modules['torch.utils._python_dispatch'] = type('', (), {})
+
+# Try to import the symbol 'IMPORTS_READY' from the module 'fixed_imports'.
+# This is wrapped in a try/except block to gracefully handle the situation where 'fixed_imports' isn't available.
+try:
+    from fixed_imports import IMPORTS_READY
+except ImportError:
+    # If the module or the symbol is not found, simply pass without raising an error.
+    pass
+
+
 
 def ddpm():
     """

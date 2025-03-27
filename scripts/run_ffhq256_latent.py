@@ -6,7 +6,8 @@ if __name__ == '__main__':
 
     # infer the latents for training the latent DPM
     # NOTE: not gpu heavy, but more gpus can be of use!
-    gpus = [0, 1, 2, 3]
+    #gpus = [0, 1, 2, 3]
+    gpus = [0]
     conf = ffhq256_autoenc()
     conf.eval_programs = ['infer']
     train(conf, gpus=gpus, mode='eval')
